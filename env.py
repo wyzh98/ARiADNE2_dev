@@ -72,11 +72,14 @@ class Env:
         reward -= dist / 30
 
         global_frontiers = get_frontier_in_map(self.belief_info)
-        frontiers_to_check = global_frontiers[:, 0] + global_frontiers[:, 1] * 1j
-        pre_frontiers_to_check = self.global_frontiers[:, 0] + self.global_frontiers[:, 1] * 1j
-        frontiers_num = np.intersect1d(frontiers_to_check, pre_frontiers_to_check).shape[0]
-        pre_frontiers_num = pre_frontiers_to_check.shape[0]
-        delta_num = pre_frontiers_num - frontiers_num
+        if global_frontiers.shape[0] == 0:
+            delta_num = self.global_frontiers.shape[0]
+        else:
+            frontiers_to_check = global_frontiers[:, 0] + global_frontiers[:, 1] * 1j
+            pre_frontiers_to_check = self.global_frontiers[:, 0] + self.global_frontiers[:, 1] * 1j
+            frontiers_num = np.intersect1d(frontiers_to_check, pre_frontiers_to_check).shape[0]
+            pre_frontiers_num = pre_frontiers_to_check.shape[0]
+            delta_num = pre_frontiers_num - frontiers_num
 
         reward += delta_num / 200
 

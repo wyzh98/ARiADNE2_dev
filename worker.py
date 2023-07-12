@@ -59,6 +59,9 @@ class Worker:
             self.save_next_observations(local_observation)
 
             if done:
+                if self.save_image:
+                    self.robot.plot_local_env()
+                    self.env.plot_env(i)
                 break
 
         # save metrics

@@ -31,7 +31,6 @@ class Local_node_manager:
             node = self.check_node_exist_in_dict(coords)
             if node is None:
                 self.add_node_to_dict(coords, local_frontiers, extended_local_map_info)
-                node = self.local_nodes_dict.find((coords[0], coords[1])).data
             else:
                 node = node.data
                 if node.utility == 0 or np.linalg.norm(node.coords - robot_location) > 2 * SENSOR_RANGE:

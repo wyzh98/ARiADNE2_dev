@@ -240,8 +240,9 @@ class PolicyNet(nn.Module):
     def output_policy(self, current_local_node_feature, enhanced_current_local_node_feature,
                       enhanced_local_node_feature, current_local_edge, local_edge_padding_mask):
         embedding_dim = enhanced_local_node_feature.size()[2]
-        current_state_feature = self.current_embedding(torch.cat((enhanced_current_local_node_feature,
-                                                                 current_local_node_feature), dim=-1))
+        current_state_feature = current_local_node_feature
+        #current_state_feature = self.current_embedding(torch.cat((enhanced_current_local_node_feature,
+        #                                                         current_local_node_feature), dim=-1))
 
         neighboring_feature = torch.gather(enhanced_local_node_feature, 1,
                                            current_local_edge.repeat(1, 1, embedding_dim))
@@ -300,8 +301,8 @@ class QNet(nn.Module):
         embedding_dim = enhanced_local_node_feature.size()[2]
         k_size = current_local_edge.size()[1]
         current_state_feature = current_local_node_feature
-        current_state_feature = self.current_embedding(torch.cat((enhanced_current_local_node_feature,
-                                                                  current_local_node_feature), dim=-1))
+        #current_state_feature = self.current_embedding(torch.cat((enhanced_current_local_node_feature,
+        #                                                          current_local_node_feature), dim=-1))
 
         neighboring_feature = torch.gather(enhanced_local_node_feature, 1,
                                            current_local_edge.repeat(1, 1, embedding_dim))

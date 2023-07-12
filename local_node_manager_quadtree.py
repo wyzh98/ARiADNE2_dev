@@ -26,27 +26,18 @@ class Local_node_manager:
 
     def update_local_graph(self, robot_location, local_frontiers, local_map_info, extended_local_map_info):
         local_node_coords, _ = get_local_node_coords(robot_location, local_map_info)
-        utility = []
-        guidepost = []
 
         for coords in local_node_coords:
             node = self.check_node_exist_in_dict(coords)
             if node is None:
                 self.add_node_to_dict(coords, local_frontiers, extended_local_map_info)
                 node = self.local_nodes_dict.find((coords[0], coords[1])).data
-                utility.append(node.utility)
-                guidepost.append(node.visited)
             else:
                 node = node.data
                 if node.utility == 0 or np.linalg.norm(node.coords - robot_location) > 2 * SENSOR_RANGE:
-                    utility.append(node.utility)
+                    pass
                 else:
                     node.update_node_observable_frontiers(local_frontiers, extended_local_map_info)
-                    utility.append(node.utility)
-                guidepost.append(node.visited)
-
-        utility = np.array(utility)
-        guidepost = np.array(guidepost)
 
         for coords in local_node_coords:
             node = self.local_nodes_dict.find((coords[0], coords[1])).data
@@ -55,22 +46,33 @@ class Local_node_manager:
             plot_y = self.y if self.plot else None
             node.update_neighbor_nodes(extended_local_map_info, self.local_nodes_dict, plot_x, plot_y)
 
-        n_nodes = local_node_coords.shape[0]
+    def get_all_node_graph(self, robot_location):
+        all_node_coords = []
+        for node in self.local_nodes_dict.__iter__():
+            all_node_coords.append(node.data.coords)
+        all_node_coords = np.array(all_node_coords).reshape(-1, 2)
+        utility = []
+        guidepost = []
+
+        n_nodes = all_node_coords.shape[0]
         adjacent_matrix = np.ones((n_nodes, n_nodes)).astype(int)
-        local_node_coords_to_check = local_node_coords[:, 0] + local_node_coords[:, 1] * 1j
-        for i, coords in enumerate(local_node_coords):
+        local_node_coords_to_check = all_node_coords[:, 0] + all_node_coords[:, 1] * 1j
+        for i, coords in enumerate(all_node_coords):
             node = self.local_nodes_dict.find((coords[0], coords[1])).data
+            utility.append(node.utility)
+            guidepost.append(node.visited)
             for neighbor in node.neighbor_list:
                 index = np.argwhere(local_node_coords_to_check == neighbor[0] + neighbor[1] * 1j)
-
                 if index or index == [[0]]:
                     index = index[0][0]
                     adjacent_matrix[i, index] = 0
 
+        utility = np.array(utility)
+        guidepost = np.array(guidepost)
+
         current_index = np.argwhere(local_node_coords_to_check == robot_location[0] + robot_location[1] * 1j)[0][0]
         neighbor_indices = np.argwhere(adjacent_matrix[current_index] == 0).reshape(-1)
-
-        return local_node_coords, utility, guidepost, adjacent_matrix, current_index, neighbor_indices
+        return all_node_coords, utility, guidepost, adjacent_matrix, current_index, neighbor_indices
 
     def h(self, coords_1, coords_2 ):
         # h = abs(coords_1[0] - coords_2[0]) + abs(coords_1[1] - coords_2[1])

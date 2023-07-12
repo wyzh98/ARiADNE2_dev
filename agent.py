@@ -82,7 +82,7 @@ class Agent:
         current_local_node_coords = local_node_coords[self.current_local_index]
         local_node_coords = np.concatenate((local_node_coords[:, 0].reshape(-1, 1) - current_local_node_coords[0],
                                             local_node_coords[:, 1].reshape(-1, 1) - current_local_node_coords[1]),
-                                           axis=-1) / (640 * 0.4)
+                                           axis=-1) / 60
         local_node_utility = local_node_utility / 200
         local_node_inputs = np.concatenate((local_node_coords, local_node_utility, local_node_guidepost), axis=1)
         local_node_inputs = torch.FloatTensor(local_node_inputs).unsqueeze(0).to(self.device)
@@ -139,7 +139,7 @@ class Agent:
         plt.imshow(self.local_map_info.map, cmap='gray')
         plt.axis('off')
         plt.scatter(nodes[:, 0], nodes[:, 1], c=self.utility, zorder=2)
-        plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r')
+        #plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r')
         plt.plot(robot[0], robot[1], 'mo', markersize=16, zorder=5)
         for i in range(len(self.local_node_manager.x)):
            plt.plot((self.local_node_manager.x[i] - self.local_map_info.map_origin_x) / self.cell_size,

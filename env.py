@@ -1,6 +1,7 @@
 import os
 import matplotlib.pyplot as plt
 from skimage import io
+from skimage.measure import block_reduce
 from copy import deepcopy
 import numpy as np
 
@@ -47,8 +48,10 @@ class Env:
         map_index = episode_index % np.size(map_list)
         ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1) * 255).astype(int)
 
+        ground_truth = block_reduce(ground_truth, 2, np.min)
+
         robot_cell = np.nonzero(ground_truth == 208)
-        robot_cell = np.array([np.array(robot_cell)[1, 108], np.array(robot_cell)[0, 108]])
+        robot_cell = np.array([np.array(robot_cell)[1, 10], np.array(robot_cell)[0, 10]])
 
         ground_truth = (ground_truth > 150) | ((ground_truth <= 80) & (ground_truth >= 50))
         ground_truth = ground_truth * 254 + 1
@@ -69,7 +72,7 @@ class Env:
 
     def calculate_reward(self, dist):
         reward = 0
-        reward -= dist / 30
+        reward -= dist / 60 * 3 
 
         global_frontiers = get_frontier_in_map(self.belief_info)
         if global_frontiers.shape[0] == 0:

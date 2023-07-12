@@ -247,7 +247,7 @@ class Local_node:
                 if not collision:
                     self.observable_frontiers = np.concatenate((self.observable_frontiers, point.reshape(1, 2)), axis=0)
         self.utility = self.observable_frontiers.shape[0]
-        if self.utility <= 2:
+        if self.utility <= 10:
             self.utility = 0
         self.utility_share[0] = self.utility
 

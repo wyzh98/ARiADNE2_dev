@@ -1,4 +1,4 @@
-FOLDER_NAME = 'ariadne1_new'
+FOLDER_NAME = 'ariadne1_low_resolution'
 model_path = f'model/{FOLDER_NAME}'
 train_path = f'train/{FOLDER_NAME}'
 gifs_path = f'gifs/{FOLDER_NAME}'
@@ -6,16 +6,16 @@ SUMMARY_WINDOW = 32
 LOAD_MODEL = False  # do you want to load the model trained before
 SAVE_IMG_GAP = 100
 
-CELL_SIZE = 0.2  # meter
+CELL_SIZE = 0.4  # meter
 NODE_RESOLUTION = 4.0  # meter
 DOWNSAMPLE_SIZE = NODE_RESOLUTION // CELL_SIZE
-SENSOR_RANGE = 16  # meter
+SENSOR_RANGE = 20  # meter
 UTILITY_RANGE = 0.9 * SENSOR_RANGE
 
 MAX_EPISODE_STEP = 128
-REPLAY_SIZE = 20000
+REPLAY_SIZE = 10000
 MINIMUM_BUFFER_SIZE = 5000
-BATCH_SIZE = 512
+BATCH_SIZE = 128
 LR = 1e-5
 GAMMA = 1
 

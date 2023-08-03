@@ -1,18 +1,18 @@
+import copy
 import time
 
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
+
 
 from utils import *
 from parameter import *
 from local_node_manager_quadtree import Local_node_manager
-from global_node_manager import Global_node_manager
 
 
 class Agent:
-    def __init__(self, policy_net, device='cpu', plot=False):
+    def __init__(self, id, policy_net, local_node_manager, device='cpu', plot=False):
+        self.id = id
         self.device = device
         self.plot = plot
         self.policy_net = policy_net
@@ -37,46 +37,68 @@ class Agent:
         self.local_frontier = None
 
         # local  node managers
-        self.local_node_manager = Local_node_manager(plot=self.plot)
+        self.local_node_manager = local_node_manager
 
         # local graph
-        self.local_node_coords, self.utility, self.guidepost = None, None, None
+        self.local_node_coords, self.utility, self.guidepost, self.occupancy = None, None, None, None
         self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices = None, None, None
+
+        self.travel_dist = 0
+
+        self.episode_buffer = []
+        for i in range(15):
+            self.episode_buffer.append([])
+
+        if self.plot:
+            self.trajectory_x = []
+            self.trajectory_y = []
+
 
     def update_global_map(self, global_map_info):
         # no need in training because of shallow copy
         self.global_map_info = global_map_info
 
-    def update_local_map(self, location):
-        self.local_map_info = self.get_local_map(location)
-        self.extended_local_map_info = self.get_extended_local_map(location)
+    def update_local_map(self):
+        self.local_map_info = self.get_local_map(self.location)
+        self.extended_local_map_info = self.get_extended_local_map(self.location)
 
     def update_location(self, location):
+        if self.location is None:
+            self.location = location
+
+        dist = np.linalg.norm(self.location - location)
+        self.travel_dist += dist
+
         self.location = location
         node = self.local_node_manager.local_nodes_dict.find((location[0], location[1]))
         if node:
             node.data.set_visited()
+        if self.plot:
+            self.trajectory_x.append(location[0])
+            self.trajectory_y.append(location[1])
 
     def update_local_frontiers(self):
         self.local_frontier = get_frontier_in_map(self.extended_local_map_info)
 
-    def update_planning_state(self, global_map_info, location):
+    def update_graph(self, global_map_info, location):
         self.update_global_map(global_map_info)
         self.update_location(location)
-        self.local_center = self.location
-        self.update_local_map(self.local_center)
+        self.update_local_map()
         self.update_local_frontiers()
         self.local_node_manager.update_local_graph(self.location,
                                                    self.local_frontier,
                                                    self.local_map_info,
                                                    self.extended_local_map_info)
-        self.local_node_coords, self.utility, self.guidepost, self.local_adjacent_matrix, self.current_local_index, self.local_neighbor_indices = \
-            self.local_node_manager.get_all_node_graph(self.location)
+
+    def update_planning_state(self, robot_locations):
+        self.local_node_coords, self.utility, self.guidepost, self.occupancy, self.local_adjacent_matrix, self.current_local_index, self.local_neighbor_indices = \
+            self.local_node_manager.get_all_node_graph(self.location, robot_locations)
 
     def get_local_observation(self):
         local_node_coords = self.local_node_coords
         local_node_utility = self.utility.reshape(-1, 1)
         local_node_guidepost = self.guidepost.reshape(-1, 1)
+        local_node_occupancy = self.occupancy.reshape(-1, 1)
         current_local_index = self.current_local_index
         local_edge_mask = self.local_adjacent_matrix
         current_local_edge = self.local_neighbor_indices
@@ -85,9 +107,9 @@ class Agent:
         current_local_node_coords = local_node_coords[self.current_local_index]
         local_node_coords = np.concatenate((local_node_coords[:, 0].reshape(-1, 1) - current_local_node_coords[0],
                                             local_node_coords[:, 1].reshape(-1, 1) - current_local_node_coords[1]),
-                                           axis=-1) / 60
+                                           axis=-1) / LOCAL_MAP_SIZE
         local_node_utility = local_node_utility / 200
-        local_node_inputs = np.concatenate((local_node_coords, local_node_utility, local_node_guidepost), axis=1)
+        local_node_inputs = np.concatenate((local_node_coords, local_node_utility, local_node_guidepost, local_node_occupancy), axis=1)
         local_node_inputs = torch.FloatTensor(local_node_inputs).unsqueeze(0).to(self.device)
 
         assert local_node_coords.shape[0] < LOCAL_NODE_PADDING_SIZE
@@ -130,15 +152,15 @@ class Agent:
         next_node_index = current_local_edge[0, action_index.item(), 0].item()
         next_position = self.local_node_coords[next_node_index]
 
-        return next_position, action_index
+        return next_position, next_node_index, action_index
 
     def get_local_map(self, location):
         local_map_origin_x = (location[
                                   0] - self.local_map_size / 2) // self.downsampled_cell_size * self.downsampled_cell_size
         local_map_origin_y = (location[
                                   1] - self.local_map_size / 2) // self.downsampled_cell_size * self.downsampled_cell_size
-        local_map_top_x = local_map_origin_x + self.local_map_size
-        local_map_top_y = local_map_origin_y + self.local_map_size
+        local_map_top_x = local_map_origin_x + self.local_map_size + NODE_RESOLUTION
+        local_map_top_y = local_map_origin_y + self.local_map_size + NODE_RESOLUTION
 
         min_x = self.global_map_info.map_origin_x
         min_y = self.global_map_info.map_origin_y
@@ -179,8 +201,8 @@ class Agent:
                                   0] - self.extended_local_map_size / 2) // self.downsampled_cell_size * self.downsampled_cell_size
         local_map_origin_y = (location[
                                   1] - self.extended_local_map_size / 2) // self.downsampled_cell_size * self.downsampled_cell_size
-        local_map_top_x = local_map_origin_x + self.extended_local_map_size
-        local_map_top_y = local_map_origin_y + self.extended_local_map_size
+        local_map_top_x = local_map_origin_x + self.extended_local_map_size + 2 * NODE_RESOLUTION
+        local_map_top_y = local_map_origin_y + self.extended_local_map_size + 2 * NODE_RESOLUTION
 
         min_x = self.global_map_info.map_origin_x
         min_y = self.global_map_info.map_origin_y
@@ -215,18 +237,37 @@ class Agent:
 
         return local_map_info
 
-    def plot_local_env(self):
-        plt.switch_backend('agg')
-        plt.figure(figsize=(15, 5))
-        plt.subplot(1, 2, 2)
-        nodes = get_cell_position_from_coords(self.local_node_coords, self.local_map_info)
-        frontiers = get_cell_position_from_coords(self.local_frontier, self.local_map_info)
-        robot = get_cell_position_from_coords(self.location, self.local_map_info)
-        plt.imshow(self.local_map_info.map, cmap='gray')
-        plt.axis('off')
-        plt.scatter(nodes[:, 0], nodes[:, 1], c=self.utility, zorder=2)
-        #plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r')
-        plt.plot(robot[0], robot[1], 'mo', markersize=16, zorder=5)
-        #for i in range(len(self.local_node_manager.x)):
-        #   plt.plot((self.local_node_manager.x[i] - self.local_map_info.map_origin_x) / self.cell_size,
-        #            (self.local_node_manager.y[i] - self.local_map_info.map_origin_y) / self.cell_size, 'tan', zorder=1)
+    def save_observation(self, local_observation):
+        local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
+        self.episode_buffer[0] += local_node_inputs
+        self.episode_buffer[1] += local_node_padding_mask
+        self.episode_buffer[2] += local_edge_mask
+        self.episode_buffer[3] += current_local_index
+        self.episode_buffer[4] += current_local_edge
+        self.episode_buffer[5] += local_edge_padding_mask
+
+    def save_action(self, action_index):
+        self.episode_buffer[6] += action_index.reshape(1, 1, 1)
+
+    def save_reward(self, reward):
+        self.episode_buffer[7] += torch.FloatTensor([reward]).reshape(1, 1, 1).to(self.device)
+
+    def save_done(self, done):
+        self.episode_buffer[8] += torch.tensor([int(done)]).reshape(1, 1, 1).to(self.device)
+
+    def save_next_observations(self, local_observation):
+        self.episode_buffer[9] = copy.deepcopy(self.episode_buffer[0])[1:]
+        self.episode_buffer[10] = copy.deepcopy(self.episode_buffer[1])[1:]
+        self.episode_buffer[11] = copy.deepcopy(self.episode_buffer[2])[1:]
+        self.episode_buffer[12] = copy.deepcopy(self.episode_buffer[3])[1:]
+        self.episode_buffer[13] = copy.deepcopy(self.episode_buffer[4])[1:]
+        self.episode_buffer[14] = copy.deepcopy(self.episode_buffer[5])[1:]
+
+        local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
+        self.episode_buffer[9] += local_node_inputs
+        self.episode_buffer[10] += local_node_padding_mask
+        self.episode_buffer[11] += local_edge_mask
+        self.episode_buffer[12] += current_local_index
+        self.episode_buffer[13] += current_local_edge
+        self.episode_buffer[14] += local_edge_padding_mask
+

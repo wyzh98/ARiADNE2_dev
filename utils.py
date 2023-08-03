@@ -14,6 +14,7 @@ def get_cell_position_from_coords(coords, map_info):
     cell_y = ((coords_y - map_info.map_origin_y) / map_info.cell_size)
 
     cell_position = np.around(np.stack((cell_x, cell_y), axis=-1)).astype(int)
+    assert False not in (cell_position.flatten() >= 0)
     if cell_position.shape[0] == 1:
         return cell_position[0]
     else:
@@ -68,8 +69,6 @@ def get_local_node_coords(location, local_map_info):
     indices = []
     nodes_cells = get_cell_position_from_coords(nodes, local_map_info)
     for i, cell in enumerate(nodes_cells):
-        if cell[1] >= free_connected_map.shape[0] or cell[0] >= free_connected_map.shape[1]:
-            continue
         if free_connected_map[cell[1], cell[0]] == 1:
             indices.append(i)
     indices = np.array(indices)
@@ -107,8 +106,8 @@ def get_partial_map_from_center(original_map_info, center_coords, partial_map_si
                               0] - partial_map_size / 2) // NODE_RESOLUTION * NODE_RESOLUTION
     partial_map_origin_y = (center_coords[
                               1] - partial_map_size / 2) // NODE_RESOLUTION * NODE_RESOLUTION
-    partial_map_top_x = partial_map_origin_x + partial_map_size
-    partial_map_top_y = partial_map_origin_y + partial_map_size
+    partial_map_top_x = partial_map_origin_x + partial_map_size + NODE_RESOLUTION
+    partial_map_top_y = partial_map_origin_y + partial_map_size + NODE_RESOLUTION
 
     min_x = original_map_info.map_origin_x
     min_y = original_map_info.map_origin_y
@@ -184,7 +183,7 @@ def check_collision(start, end, map_info):
 
 
 def make_gif(path, n, frame_files, rate):
-    with imageio.get_writer('{}/{}_explored_rate_{:.4g}.gif'.format(path, n, rate), mode='I', duration=0.5) as writer:
+    with imageio.get_writer('{}/{}_explored_rate_{:.4g}.gif'.format(path, n, rate), mode='I', duration=0.1) as writer:
         for frame in frame_files:
             image = imageio.imread(frame)
             writer.append_data(image)

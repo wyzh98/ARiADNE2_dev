@@ -25,6 +25,16 @@ class Local_node_manager:
         self.local_nodes_dict.insert(point=key, data=node)
 
     def update_local_graph(self, robot_location, local_frontiers, local_map_info, extended_local_map_info):
+        extended_local_node_coords, _ = get_local_node_coords(robot_location, extended_local_map_info)
+        for coords in extended_local_node_coords:
+            node = self.check_node_exist_in_dict(coords)
+            if node is not None:
+                node = node.data
+                if node.utility == 0 or np.linalg.norm(node.coords - robot_location) > 2 * SENSOR_RANGE:
+                    pass
+                else:
+                    node.update_node_observable_frontiers(local_frontiers, extended_local_map_info)
+
         local_node_coords, _ = get_local_node_coords(robot_location, local_map_info)
 
         for coords in local_node_coords:
@@ -32,11 +42,7 @@ class Local_node_manager:
             if node is None:
                 self.add_node_to_dict(coords, local_frontiers, extended_local_map_info)
             else:
-                node = node.data
-                if node.utility == 0 or np.linalg.norm(node.coords - robot_location) > 2 * SENSOR_RANGE:
-                    pass
-                else:
-                    node.update_node_observable_frontiers(local_frontiers, extended_local_map_info)
+                pass
 
         for coords in local_node_coords:
             node = self.local_nodes_dict.find((coords[0], coords[1])).data
@@ -45,7 +51,7 @@ class Local_node_manager:
             plot_y = self.y if self.plot else None
             node.update_neighbor_nodes(extended_local_map_info, self.local_nodes_dict, plot_x, plot_y)
 
-    def get_all_node_graph(self, robot_location):
+    def get_all_node_graph(self, robot_location, robot_locations):
         all_node_coords = []
         for node in self.local_nodes_dict.__iter__():
             all_node_coords.append(node.data.coords)
@@ -69,17 +75,29 @@ class Local_node_manager:
         utility = np.array(utility)
         guidepost = np.array(guidepost)
 
-        current_index = np.argwhere(local_node_coords_to_check == robot_location[0] + robot_location[1] * 1j)[0][0]
+        robot_in_graph = self.local_nodes_dict.nearest_neighbors(robot_location.tolist(), 1)[0].data.coords
+        current_index = np.argwhere(local_node_coords_to_check == robot_in_graph[0] + robot_in_graph[1] * 1j)[0][0]
         neighbor_indices = np.argwhere(adjacent_matrix[current_index] == 0).reshape(-1)
-        return all_node_coords, utility, guidepost, adjacent_matrix, current_index, neighbor_indices
 
-    def h(self, coords_1, coords_2 ):
+        occupancy = np.zeros((n_nodes, 1))
+        for location in robot_locations:
+            location_in_graph = self.local_nodes_dict.find((location[0], location[1])).data.coords
+            index = np.argwhere(local_node_coords_to_check == location_in_graph[0] + location_in_graph[1] * 1j)[0][0]
+            if index == current_index:
+                occupancy[index] = -1
+            else:
+                occupancy[index] = 1
+        assert sum(occupancy) == 2, print(robot_locations)
+        return all_node_coords, utility, guidepost, occupancy, adjacent_matrix, current_index, neighbor_indices
+
+    def h(self, coords_1, coords_2):
         # h = abs(coords_1[0] - coords_2[0]) + abs(coords_1[1] - coords_2[1])
-        h = ((coords_1[0]-coords_2[0])**2 + (coords_1[1] - coords_2[1])**2)**(1/2)
+        h = ((coords_1[0] - coords_2[0]) ** 2 + (coords_1[1] - coords_2[1]) ** 2) ** (1 / 2)
         h = np.round(h, 2)
         return h
 
     def a_star(self, start, destination, max_dist=1e8):
+        # the path does not include the start
         if not self.check_node_exist_in_dict(start):
             Warning("start position is not in node dict")
             return [], 1e8
@@ -88,7 +106,7 @@ class Local_node_manager:
             return [], 1e8
 
         if start[0] == destination[0] and start[1] == destination[1]:
-            return [start, destination], 0
+            return [destination], 0
 
         open_list = {(start[0], start[1])}
         closed_list = set()
@@ -119,12 +137,12 @@ class Local_node_manager:
                 while parents[n] != n:
                     path.append(n)
                     n = parents[n]
-                path.append(start)
                 path.reverse()
                 return path, np.round(length, 2)
 
             for neighbor_node_coords in node.neighbor_list:
-                cost = ((neighbor_node_coords[0]-n_coords[0])**2 + (neighbor_node_coords[1] - n_coords[1])**2)**(1/2)
+                cost = ((neighbor_node_coords[0] - n_coords[0]) ** 2 + (
+                            neighbor_node_coords[1] - n_coords[1]) ** 2) ** (1 / 2)
                 cost = np.round(cost, 2)
                 m = (neighbor_node_coords[0], neighbor_node_coords[1])
                 if g[n] + cost > max_dist:
@@ -153,7 +171,7 @@ class Local_node:
         self.coords = coords
         self.utility_range = UTILITY_RANGE
         self.observable_frontiers = self.initialize_observable_frontiers(local_frontiers, extended_local_map_info)
-        self.utility = self.observable_frontiers.shape[0] if self.observable_frontiers.shape[0] > 2 else 0
+        self.utility = self.observable_frontiers.shape[0] if self.observable_frontiers.shape[0] > MIN_UTILITY else 0
         self.utility_share = [self.utility]
         self.visited = 0
 
@@ -191,7 +209,7 @@ class Local_node:
                         continue
 
                     neighbor_coords = np.around(np.array([self.coords[0] + (i - center_index) * NODE_RESOLUTION,
-                                                self.coords[1] + (j - center_index) * NODE_RESOLUTION]), 1)
+                                                          self.coords[1] + (j - center_index) * NODE_RESOLUTION]), 1)
                     neighbor_node = nodes_dict.find((neighbor_coords[0], neighbor_coords[1]))
                     if neighbor_node is None:
                         cell = get_cell_position_from_coords(neighbor_coords, extended_local_map_info)
@@ -221,7 +239,7 @@ class Local_node:
         # print(self.neighbor_matrix)
 
     def update_node_observable_frontiers(self, local_frontiers, extended_local_map_info):
-        
+
         # remove observed frontiers in the observable frontiers
         if local_frontiers.shape[0] == 0:
             self.utility = 0
@@ -248,7 +266,7 @@ class Local_node:
                 if not collision:
                     self.observable_frontiers = np.concatenate((self.observable_frontiers, point.reshape(1, 2)), axis=0)
         self.utility = self.observable_frontiers.shape[0]
-        if self.utility <= 10:
+        if self.utility <= MIN_UTILITY:
             self.utility = 0
         self.utility_share[0] = self.utility
 

@@ -182,7 +182,7 @@ class Local_node:
         self.need_update_neighbor = True
 
     def initialize_observable_frontiers(self, local_frontiers, extended_local_map_info):
-        if local_frontiers == []:
+        if type(local_frontiers) is list:
             self.utility = 0
             return []
         else:
@@ -258,7 +258,7 @@ class Local_node:
         new_frontiers = local_frontiers[new_frontier_index]
 
         # add new frontiers in the observable frontiers
-        if new_frontiers != []:
+        if type(local_frontiers) is not list:
             dist_list = np.linalg.norm(new_frontiers - self.coords, axis=-1)
             new_frontiers_in_range = new_frontiers[dist_list < self.utility_range]
             for point in new_frontiers_in_range:

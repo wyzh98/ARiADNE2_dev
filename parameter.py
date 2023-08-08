@@ -22,7 +22,7 @@ EXTENDED_LOCAL_MAP_SIZE = 6 * SENSOR_RANGE * 1.05
 MAX_EPISODE_STEP = 128
 REPLAY_SIZE = 10000
 MINIMUM_BUFFER_SIZE = 5000
-BATCH_SIZE = 256
+BATCH_SIZE = 128
 LR = 1e-5
 GAMMA = 1
 
@@ -30,10 +30,10 @@ LOCAL_NODE_INPUT_DIM = 5
 EMBEDDING_DIM = 128
 
 LOCAL_K_SIZE = 25  # the number of neighboring nodes
-LOCAL_NODE_PADDING_SIZE = 400  # the number of nodes will be padded to this value
+LOCAL_NODE_PADDING_SIZE = 450  # the number of nodes will be padded to this value
 
 USE_GPU = False  # do you want to collect training data using GPUs
 USE_GPU_GLOBAL = True  # do you want to train the network using GPUs
 NUM_GPU = 1
-NUM_META_AGENT = 16
-USE_WANDB = False
+NUM_META_AGENT = 8
+USE_WANDB = True

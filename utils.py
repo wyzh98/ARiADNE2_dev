@@ -66,12 +66,9 @@ def get_local_node_coords(location, local_map_info):
 
     free_connected_map = get_free_and_connected_map(location, local_map_info)
 
-    indices = []
     nodes_cells = get_cell_position_from_coords(nodes, local_map_info)
-    for i, cell in enumerate(nodes_cells):
-        if free_connected_map[cell[1], cell[0]] == 1:
-            indices.append(i)
-    indices = np.array(indices)
+    nodes_cells_value = free_connected_map[nodes_cells[:, 1], nodes_cells[:, 0]]
+    indices = np.where(nodes_cells_value == True)[0]
     nodes = nodes[indices]
 
     return nodes, free_connected_map

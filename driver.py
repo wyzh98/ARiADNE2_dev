@@ -51,7 +51,7 @@ def main():
     # load model and optimizer trained before
     if LOAD_MODEL:
         print('Loading Model...')
-        checkpoint = torch.load(model_path + '/checkpoint.pth', map_location='cpu')
+        checkpoint = torch.load(model_path + '/checkpoint.pth')
         global_policy_net.load_state_dict(checkpoint['policy_model'])
         global_q_net1.load_state_dict(checkpoint['q_net1_model'])
         global_q_net2.load_state_dict(checkpoint['q_net2_model'])

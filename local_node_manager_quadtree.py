@@ -182,9 +182,9 @@ class Local_node:
         self.need_update_neighbor = True
 
     def initialize_observable_frontiers(self, local_frontiers, extended_local_map_info):
-        if local_frontiers == []:
+        if local_frontiers.shape[0] == 0:
             self.utility = 0
-            return []
+            return local_frontiers
         else:
             observable_frontiers = []
             dist_list = np.linalg.norm(local_frontiers - self.coords, axis=-1)
@@ -244,7 +244,7 @@ class Local_node:
         if local_frontiers.shape[0] == 0:
             self.utility = 0
             self.utility_share[0] = self.utility
-            self.observable_frontiers = []
+            self.observable_frontiers = local_frontiers
             return
 
         local_frontiers = local_frontiers.reshape(-1, 2)
@@ -258,7 +258,7 @@ class Local_node:
         new_frontiers = local_frontiers[new_frontier_index]
 
         # add new frontiers in the observable frontiers
-        if new_frontiers != []:
+        if new_frontiers.shape[0] > 0:
             dist_list = np.linalg.norm(new_frontiers - self.coords, axis=-1)
             new_frontiers_in_range = new_frontiers[dist_list < self.utility_range]
             for point in new_frontiers_in_range:
@@ -269,6 +269,19 @@ class Local_node:
         if self.utility <= MIN_UTILITY:
             self.utility = 0
         self.utility_share[0] = self.utility
+
+    def delete_observed_frontiers(self, observed_frontiers):
+        # remove observed frontiers in the observable frontiers
+        observed_frontiers = observed_frontiers.reshape(-1, 2)
+        old_frontier_to_check = self.observable_frontiers[:, 0] + self.observable_frontiers[:, 1] * 1j
+        observed_frontiers_to_check = observed_frontiers[:, 0] + observed_frontiers[:, 1] * 1j
+        to_observe_index = np.where(
+            np.isin(old_frontier_to_check, observed_frontiers_to_check, assume_unique=True) == False)
+        self.observable_frontiers = self.observable_frontiers[to_observe_index]
+
+        self.utility = self.observable_frontiers.shape[0]
+        if self.utility <= MIN_UTILITY:
+            self.utility = 0
 
     def set_visited(self):
         self.visited = 1

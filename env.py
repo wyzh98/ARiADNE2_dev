@@ -4,10 +4,13 @@ from skimage import io
 from skimage.measure import block_reduce
 from copy import deepcopy
 import numpy as np
+import random
 
 from sensor import sensor_work
 from parameter import *
 from utils import *
+from ground_truth_planner import Ground_truth_planner
+from expert_planner import Expert_planner
 
 
 class Env:
@@ -31,6 +34,9 @@ class Env:
                                         self.ground_truth)
         self.belief_info = Map_info(self.robot_belief, self.belief_origin_x, self.belief_origin_y, self.cell_size)
 
+        self.ground_truth_info = Map_info(self.ground_truth, self.belief_origin_x, self.belief_origin_y, self.cell_size)
+
+        np.random.seed(47)
         free, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
         choice = np.random.choice(free.shape[0], N_AGENTS, replace=False)
         starts = free[choice]
@@ -45,6 +51,9 @@ class Env:
 
         if self.plot:
             self.frame_files = []
+
+        self.expert_planner = None
+        self.ground_truth_planner = Ground_truth_planner(self.ground_truth_info)
 
 
     def import_ground_truth(self, episode_index):
@@ -62,11 +71,6 @@ class Env:
         ground_truth = ground_truth * 254 + 1
 
         return ground_truth, robot_cell
-
-    def update_robot_location(self, robot_location):
-        self.robot_location = robot_location
-        self.robot_cell = np.array([round((robot_location[0] - self.belief_origin_x) / self.cell_size),
-                                    round((robot_location[1] - self.belief_origin_y) / self.cell_size)])
 
     def update_robot_belief(self, robot_cell):
         self.robot_belief = sensor_work(robot_cell, round(self.sensor_range / self.cell_size), self.robot_belief,
@@ -109,8 +113,12 @@ class Env:
         reward = 0
         cell = get_cell_position_from_coords(next_waypoint, self.belief_info)
         self.update_robot_belief(cell)
-        # reward = self.calculate_reward(dist)
 
-        return reward
+    def get_expert_paths(self):
+        paths = self.expert_planner.plan_coverage_paths(self.robot_locations)
+        return paths
 
+    def get_ground_truth_paths(self):
+        paths = self.ground_truth_planner.plan_coverage_paths(self.belief_info, self.robot_locations)
+        return paths
 

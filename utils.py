@@ -2,6 +2,8 @@ import numpy as np
 import imageio
 import os
 from skimage.morphology import label
+from copy import deepcopy
+from skimage.measure import block_reduce
 
 from parameter import *
 
@@ -14,7 +16,7 @@ def get_cell_position_from_coords(coords, map_info):
     cell_y = ((coords_y - map_info.map_origin_y) / map_info.cell_size)
 
     cell_position = np.around(np.stack((cell_x, cell_y), axis=-1)).astype(int)
-    assert False not in (cell_position.flatten() >= 0)
+    # assert False not in (cell_position.flatten() >= 0)
     if cell_position.shape[0] == 1:
         return cell_position[0]
     else:
@@ -40,6 +42,29 @@ def get_free_area_coords(map_info):
     free_cells = np.asarray([free_indices[1], free_indices[0]]).T
     free_coords = get_coords_from_cell_position(free_cells, map_info)
     return free_coords
+
+
+def get_ground_truth_node_coords(global_map_info):
+    x_min = (global_map_info.map_origin_x // NODE_RESOLUTION) * NODE_RESOLUTION
+    y_min = (global_map_info.map_origin_y // NODE_RESOLUTION) * NODE_RESOLUTION
+    x_max = ((global_map_info.map_origin_x + global_map_info.map.shape[1] * CELL_SIZE) // NODE_RESOLUTION - 1) * NODE_RESOLUTION
+    y_max = ((global_map_info.map_origin_y + global_map_info.map.shape[0] * CELL_SIZE) // NODE_RESOLUTION - 1) * NODE_RESOLUTION
+
+    x_coords = np.arange(x_min, x_max, NODE_RESOLUTION)
+    y_coords = np.arange(y_min, y_max, NODE_RESOLUTION)
+    t1, t2 = np.meshgrid(x_coords, y_coords)
+    nodes = np.vstack([t1.T.ravel(), t2.T.ravel()]).T
+    nodes = np.around(nodes, 1)
+
+    indices = []
+    nodes_cells = get_cell_position_from_coords(nodes, global_map_info)
+    for i, cell in enumerate(nodes_cells):
+        if global_map_info.map[cell[1], cell[0]] == 255:
+            indices.append(i)
+    indices = np.array(indices)
+    nodes = nodes[indices]
+
+    return nodes
 
 
 def get_free_and_connected_map(location, map_info):
@@ -77,7 +102,10 @@ def get_local_node_coords(location, local_map_info):
     return nodes, free_connected_map
 
 
-def get_frontier_in_map(map_info):
+def get_frontier_in_map(map_info_to_copy):
+    map_info = deepcopy(map_info_to_copy)
+    map_info.map = block_reduce(map_info.map, FRONTIER_CLUSTER, np.min)
+    map_info.cell_size = FRONTIER_CLUSTER * map_info.cell_size
     x_len = map_info.map.shape[1]
     y_len = map_info.map.shape[0]
     unknown = (map_info.map == 127) * 1
@@ -97,7 +125,11 @@ def get_frontier_in_map(map_info):
     cells = np.vstack([t1.T.ravel(), t2.T.ravel()]).T
     frontier_cell = cells[frontier_cell_indices]
 
-    frontier_coords = get_coords_from_cell_position(frontier_cell, map_info)
+    if frontier_cell.shape[0] > 0:
+        frontier_coords = get_coords_from_cell_position(frontier_cell, map_info)
+        frontier_coords.reshape(-1, 2)
+    else:
+        frontier_coords = frontier_cell
     return frontier_coords
 
 
@@ -183,7 +215,7 @@ def check_collision(start, end, map_info):
 
 
 def make_gif(path, n, frame_files, rate):
-    with imageio.get_writer('{}/{}_explored_rate_{:.4g}.gif'.format(path, n, rate), mode='I', duration=0.1) as writer:
+    with imageio.get_writer('{}/{}_explored_rate_{:.4g}.gif'.format(path, n, rate), mode='I', duration=0.5) as writer:
         for frame in frame_files:
             image = imageio.imread(frame)
             writer.append_data(image)

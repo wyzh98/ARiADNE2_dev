@@ -87,7 +87,7 @@ class Local_node_manager:
                 occupancy[index] = -1
             else:
                 occupancy[index] = 1
-        assert sum(occupancy) == 2, print(robot_locations)
+        assert sum(occupancy) == N_AGENTS-2, print(robot_locations)
         return all_node_coords, utility, guidepost, occupancy, adjacent_matrix, current_index, neighbor_indices
 
     def h(self, coords_1, coords_2):

@@ -240,11 +240,11 @@ class Agent:
     def save_observation(self, local_observation):
         local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
         self.episode_buffer[0] += local_node_inputs
-        self.episode_buffer[1] += local_node_padding_mask
-        self.episode_buffer[2] += local_edge_mask
+        self.episode_buffer[1] += local_node_padding_mask.bool()
+        self.episode_buffer[2] += local_edge_mask.bool()
         self.episode_buffer[3] += current_local_index
         self.episode_buffer[4] += current_local_edge
-        self.episode_buffer[5] += local_edge_padding_mask
+        self.episode_buffer[5] += local_edge_padding_mask.bool()
 
     def save_action(self, action_index):
         self.episode_buffer[6] += action_index.reshape(1, 1, 1)
@@ -265,9 +265,9 @@ class Agent:
 
         local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
         self.episode_buffer[9] += local_node_inputs
-        self.episode_buffer[10] += local_node_padding_mask
-        self.episode_buffer[11] += local_edge_mask
+        self.episode_buffer[10] += local_node_padding_mask.bool()
+        self.episode_buffer[11] += local_edge_mask.bool()
         self.episode_buffer[12] += current_local_index
         self.episode_buffer[13] += current_local_edge
-        self.episode_buffer[14] += local_edge_padding_mask
+        self.episode_buffer[14] += local_edge_padding_mask.bool()
 

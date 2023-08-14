@@ -8,8 +8,8 @@ SAVE_IMG_GAP = 100
 
 N_AGENTS = 4
 
-CELL_SIZE = 0.4  # meter
-NODE_RESOLUTION = 3.2 # meter
+CELL_SIZE = 0.4  # pixel to meter
+NODE_RESOLUTION = 3.2 # node to meter
 DOWNSAMPLE_SIZE = NODE_RESOLUTION // CELL_SIZE
 
 SENSOR_RANGE = 20  # meter

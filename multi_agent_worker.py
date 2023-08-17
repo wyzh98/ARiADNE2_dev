@@ -8,7 +8,7 @@ from agent import Agent
 from parameter import *
 from utils import *
 from model import PolicyNet
-from local_node_manager_quadtree import Local_node_manager
+from local_node_manager_quadtree import SafeNodeManager
 
 if not os.path.exists(gifs_path):
     os.makedirs(gifs_path)
@@ -23,9 +23,9 @@ class Multi_agent_worker:
 
         self.env = Env(global_step, plot=self.save_image)
         self.n_agent = N_AGENTS
-        self.local_node_manager = Local_node_manager(plot=self.save_image)
+        self.safe_node_manager = SafeNodeManager(self.env.free_locations, plot=self.save_image)
 
-        self.robot_list = [Agent(i, policy_net, self.local_node_manager, self.device, self.save_image) for i in
+        self.robot_list = [Agent(i, policy_net, self.safe_node_manager, self.device, self.save_image) for i in
                            range(N_AGENTS)]
 
         self.episode_buffer = []
@@ -36,7 +36,8 @@ class Multi_agent_worker:
     def run_episode(self):
         done = False
         for robot in self.robot_list:
-            robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
+            robot.update_explore_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
+            robot.update_safe_graph(self.env.safe_info, deepcopy(self.env.robot_locations[robot.id]))
         for robot in self.robot_list:    
             robot.update_planning_state(self.env.robot_locations)
 
@@ -51,7 +52,7 @@ class Multi_agent_worker:
                 next_location, next_node_index, action_index = robot.select_next_waypoint(local_observation)
                 robot.save_action(action_index)
 
-                node = robot.local_node_manager.local_nodes_dict.find((robot.location[0], robot.location[1]))
+                node = robot.safe_node_manager.safe_nodes_dict.find((robot.location[0], robot.location[1]))
                 check = np.array(node.data.neighbor_list)
                 assert next_location[0] + next_location[1] * 1j in check[:, 0] + check[:, 1] * 1j, print(next_location,
                                                                                                          robot.location,
@@ -70,7 +71,7 @@ class Multi_agent_worker:
                 solved_locations = selected_locations_in_arriving_sequence[:j]
                 while selected_location[0] + selected_location[1] * 1j in solved_locations[:, 0] + solved_locations[:, 1] * 1j:
                     id = arriving_sequence[j]
-                    nearby_nodes = self.robot_list[id].local_node_manager.local_nodes_dict.nearest_neighbors(
+                    nearby_nodes = self.robot_list[id].safe_node_manager.safe_nodes_dict.nearest_neighbors(
                         selected_location.tolist(), 25)
                     for node in nearby_nodes:
                         coords = node.data.coords
@@ -88,7 +89,8 @@ class Multi_agent_worker:
                 individual_reward = robot.utility[next_node_index] / 400
                 reward_list.append(individual_reward)
 
-                robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
+                robot.update_explore_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
+                robot.update_safe_graph(self.env.safe_info, deepcopy(self.env.robot_locations[robot.id]))
 
             if self.robot_list[0].utility.sum() == 0:
                 done = True
@@ -112,7 +114,7 @@ class Multi_agent_worker:
 
         # save metrics
         self.perf_metrics['travel_dist'] = max([robot.travel_dist for robot in self.robot_list])
-        self.perf_metrics['explored_rate'] = self.env.explored_rate
+        self.perf_metrics['explored_rate'] = self.env.safe_rate
         self.perf_metrics['success_rate'] = done
 
         # save episode buffer
@@ -124,13 +126,13 @@ class Multi_agent_worker:
 
         # save gif
         if self.save_image:
-            make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.explored_rate)
+            make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.safe_rate)
 
     def plot_local_env(self, step):
         plt.switch_backend('agg')
-        plt.figure(figsize=(15, 5))
+        plt.figure(figsize=(11, 5))
         plt.subplot(1, 2, 2)
-        plt.imshow(self.env.robot_belief, cmap='gray')
+        plt.imshow(self.env.robot_belief, cmap='gray', vmin=-255)
         plt.axis('off')
         color_list = ['r', 'b', 'g', 'y']
         for robot in self.robot_list:
@@ -140,26 +142,26 @@ class Multi_agent_worker:
             plt.plot((np.array(robot.trajectory_x) - robot.global_map_info.map_origin_x) / robot.cell_size,
                      (np.array(robot.trajectory_y) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
                      linewidth=2, zorder=1)
-            # for i in range(len(self.local_node_manager.x)):
-            #   plt.plot((self.local_node_manager.x[i] - self.local_map_info.map_origin_x) / self.cell_size,
-            #            (self.local_node_manager.y[i] - self.local_map_info.map_origin_y) / self.cell_size, 'tan', zorder=1)
+            # for i in range(len(self.safe_node_manager.x)):
+            #   plt.plot((self.safe_node_manager.x[i] - self.local_safe_zone_info.map_origin_x) / self.cell_size,
+            #            (self.safe_node_manager.y[i] - self.local_safe_zone_info.map_origin_y) / self.cell_size, 'tan', zorder=1)
 
         plt.subplot(1, 2, 1)
         plt.imshow(self.env.robot_belief, cmap='gray')
         for robot in self.robot_list:
             c = color_list[robot.id]
             if robot.id == 0:
-                nodes = get_cell_position_from_coords(robot.local_node_coords, robot.global_map_info)
-                frontiers = get_cell_position_from_coords(robot.local_frontier, robot.global_map_info)
-                plt.imshow(robot.global_map_info.map, cmap='gray')
+                nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
+                # frontiers = get_cell_position_from_coords(robot.safe_frontier, robot.safe_zone_info)
+                plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=0.5)
                 plt.axis('off')
                 plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.utility, zorder=2)
-                # plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r')
-            robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
+                # plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r', s=3)
+            robot_cell = get_cell_position_from_coords(robot.location, robot.safe_zone_info)
             plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=16, zorder=5)
 
         plt.axis('off')
-        plt.suptitle('Explored ratio: {:.4g}  Travel distance: {:.4g}'.format(self.env.explored_rate,
+        plt.suptitle('Explored ratio: {:.4g}  Travel distance: {:.4g}'.format(self.env.safe_rate,
                                                                               max([robot.travel_dist for robot in
                                                                                    self.robot_list])))
         plt.tight_layout()
@@ -172,5 +174,5 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
     worker.run_episode()

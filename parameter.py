@@ -1,4 +1,4 @@
-FOLDER_NAME = 'ariadne1_multi_agent'
+FOLDER_NAME = 'coverage'
 model_path = f'model/{FOLDER_NAME}'
 train_path = f'train/{FOLDER_NAME}'
 gifs_path = f'gifs/{FOLDER_NAME}'

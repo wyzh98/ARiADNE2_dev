@@ -6,25 +6,71 @@ from parameter import *
 import quads
 
 
-class Local_node_manager:
-    def __init__(self, plot=False):
-        self.local_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
+class SafeNodeManager:
+    def __init__(self, free=None, plot=False):
+        self.safe_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
+        self.all_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
         self.plot = plot
+        if free is not None:
+            self.add_free_nodes(free)
         if self.plot:
             self.x = []
             self.y = []
 
+    def add_free_nodes(self, free):
+        for coords in free:
+            key = (coords[0], coords[1])
+            node = LocalNode(coords, np.array([]), None)
+            self.all_nodes_dict.insert(point=key, data=node)
+
     def check_node_exist_in_dict(self, coords):
         key = (coords[0], coords[1])
-        exist = self.local_nodes_dict.find(key)
+        exist = self.all_nodes_dict.find(key)
+        return exist
+
+    def check_node_exist_in_safe(self, coords):
+        key = (coords[0], coords[1])
+        exist = self.safe_nodes_dict.find(key)
         return exist
 
     def add_node_to_dict(self, coords, local_frontiers, extended_local_map_info):
         key = (coords[0], coords[1])
-        node = Local_node(coords, local_frontiers, extended_local_map_info)
-        self.local_nodes_dict.insert(point=key, data=node)
+        node = LocalNode(coords, local_frontiers, extended_local_map_info)
+        self.all_nodes_dict.insert(point=key, data=node)
+
+    def add_node_to_safe(self, coords, local_frontiers, extended_local_map_info):
+        key = (coords[0], coords[1])
+        node = LocalNode(coords, local_frontiers, extended_local_map_info)
+        self.safe_nodes_dict.insert(point=key, data=node)
 
     def update_local_graph(self, robot_location, local_frontiers, local_map_info, extended_local_map_info):
+        extended_local_node_coords, _ = get_local_node_coords(robot_location, extended_local_map_info)
+        for coords in extended_local_node_coords:
+            node = self.check_node_exist_in_safe(coords)
+            if node is not None:
+                node = node.data
+                if node.utility == 0 or np.linalg.norm(node.coords - robot_location) > 2 * SENSOR_RANGE:
+                    pass
+                else:
+                    node.update_node_observable_frontiers(local_frontiers, extended_local_map_info)
+
+        local_node_coords, _ = get_local_node_coords(robot_location, local_map_info)
+
+        for coords in local_node_coords:
+            node = self.check_node_exist_in_safe(coords)
+            if node is None:
+                self.add_node_to_safe(coords, local_frontiers, extended_local_map_info)
+            else:
+                pass
+
+        for coords in local_node_coords:
+            node = self.safe_nodes_dict.find((coords[0], coords[1])).data
+
+            plot_x = self.x if self.plot else None
+            plot_y = self.y if self.plot else None
+            node.update_neighbor_nodes(extended_local_map_info, self.safe_nodes_dict, plot_x, plot_y)
+
+    def update_local_explore_graph(self, robot_location, local_frontiers, local_map_info, extended_local_map_info):
         extended_local_node_coords, _ = get_local_node_coords(robot_location, extended_local_map_info)
         for coords in extended_local_node_coords:
             node = self.check_node_exist_in_dict(coords)
@@ -45,15 +91,12 @@ class Local_node_manager:
                 pass
 
         for coords in local_node_coords:
-            node = self.local_nodes_dict.find((coords[0], coords[1])).data
-
-            plot_x = self.x if self.plot else None
-            plot_y = self.y if self.plot else None
-            node.update_neighbor_nodes(extended_local_map_info, self.local_nodes_dict, plot_x, plot_y)
+            node = self.all_nodes_dict.find((coords[0], coords[1])).data
+            node.update_neighbor_nodes(extended_local_map_info, self.all_nodes_dict)
 
     def get_all_node_graph(self, robot_location, robot_locations):
         all_node_coords = []
-        for node in self.local_nodes_dict.__iter__():
+        for node in self.all_nodes_dict.__iter__():
             all_node_coords.append(node.data.coords)
         all_node_coords = np.array(all_node_coords).reshape(-1, 2)
         utility = []
@@ -63,9 +106,14 @@ class Local_node_manager:
         adjacent_matrix = np.ones((n_nodes, n_nodes)).astype(int)
         local_node_coords_to_check = all_node_coords[:, 0] + all_node_coords[:, 1] * 1j
         for i, coords in enumerate(all_node_coords):
-            node = self.local_nodes_dict.find((coords[0], coords[1])).data
-            utility.append(node.utility)
-            guidepost.append(node.visited)
+            node = self.all_nodes_dict.find((coords[0], coords[1])).data
+            safe = self.safe_nodes_dict.find((coords[0], coords[1]))
+            if safe:
+                utility.append(safe.data.utility)
+                guidepost.append(safe.data.visited)
+            else:
+                utility.append(0)
+                guidepost.append(0)
             for neighbor in node.neighbor_list:
                 index = np.argwhere(local_node_coords_to_check == neighbor[0] + neighbor[1] * 1j)
                 if index or index == [[0]]:
@@ -75,13 +123,13 @@ class Local_node_manager:
         utility = np.array(utility)
         guidepost = np.array(guidepost)
 
-        robot_in_graph = self.local_nodes_dict.nearest_neighbors(robot_location.tolist(), 1)[0].data.coords
+        robot_in_graph = self.all_nodes_dict.nearest_neighbors(robot_location.tolist(), 1)[0].data.coords
         current_index = np.argwhere(local_node_coords_to_check == robot_in_graph[0] + robot_in_graph[1] * 1j)[0][0]
         neighbor_indices = np.argwhere(adjacent_matrix[current_index] == 0).reshape(-1)
 
         occupancy = np.zeros((n_nodes, 1))
         for location in robot_locations:
-            location_in_graph = self.local_nodes_dict.find((location[0], location[1])).data.coords
+            location_in_graph = self.all_nodes_dict.find((location[0], location[1])).data.coords
             index = np.argwhere(local_node_coords_to_check == location_in_graph[0] + location_in_graph[1] * 1j)[0][0]
             if index == current_index:
                 occupancy[index] = -1
@@ -98,10 +146,10 @@ class Local_node_manager:
 
     def a_star(self, start, destination, max_dist=1e8):
         # the path does not include the start
-        if not self.check_node_exist_in_dict(start):
+        if not self.check_node_exist_in_safe(start):
             Warning("start position is not in node dict")
             return [], 1e8
-        if not self.check_node_exist_in_dict(destination):
+        if not self.check_node_exist_in_safe(destination):
             Warning("end position is not in node dict")
             return [], 1e8
 
@@ -120,12 +168,12 @@ class Local_node_manager:
             for v in open_list:
                 h_v = self.h(v, destination)
                 if n is not None:
-                    node = self.local_nodes_dict.find(n).data
+                    node = self.safe_nodes_dict.find(n).data
                     n_coords = node.coords
                     h_n = self.h(n_coords, destination)
                 if n is None or g[v] + h_v < g[n] + h_n:
                     n = v
-                    node = self.local_nodes_dict.find(n).data
+                    node = self.safe_nodes_dict.find(n).data
                     n_coords = node.coords
 
             # if g[n] > max_dist:
@@ -166,13 +214,14 @@ class Local_node_manager:
         return [], 1e8
 
 
-class Local_node:
+class LocalNode:
     def __init__(self, coords, local_frontiers, extended_local_map_info):
         self.coords = coords
         self.utility_range = UTILITY_RANGE
         self.observable_frontiers = self.initialize_observable_frontiers(local_frontiers, extended_local_map_info)
         self.utility = self.observable_frontiers.shape[0] if self.observable_frontiers.shape[0] > MIN_UTILITY else 0
         self.utility_share = [self.utility]
+        self.safe_signal = 0
         self.visited = 0
 
         self.neighbor_matrix = -np.ones((5, 5))
@@ -182,9 +231,9 @@ class Local_node:
         self.need_update_neighbor = True
 
     def initialize_observable_frontiers(self, local_frontiers, extended_local_map_info):
-        if type(local_frontiers) is list:
+        if local_frontiers.shape[0] == 0:
             self.utility = 0
-            return []
+            return np.array([])
         else:
             observable_frontiers = []
             dist_list = np.linalg.norm(local_frontiers - self.coords, axis=-1)
@@ -258,7 +307,7 @@ class Local_node:
         new_frontiers = local_frontiers[new_frontier_index]
 
         # add new frontiers in the observable frontiers
-        if type(local_frontiers) is not list:
+        if local_frontiers.shape[0] != 0:
             dist_list = np.linalg.norm(new_frontiers - self.coords, axis=-1)
             new_frontiers_in_range = new_frontiers[dist_list < self.utility_range]
             for point in new_frontiers_in_range:

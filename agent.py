@@ -3,24 +3,24 @@ import time
 
 import numpy as np
 import torch
-
+import matplotlib.pyplot as plt
 
 from utils import *
 from parameter import *
-from local_node_manager_quadtree import Local_node_manager
+from local_node_manager_quadtree import SafeNodeManager
 
 
 class Agent:
-    def __init__(self, id, policy_net, local_node_manager, device='cpu', plot=False):
+    def __init__(self, id, policy_net, safe_node_manager, device='cpu', plot=False):
         self.id = id
         self.device = device
         self.plot = plot
         self.policy_net = policy_net
 
-        # location and global map
+        # location and safe zone
         self.location = None
         self.global_map_info = None
-        self.local_center = None
+        self.safe_zone_info = None
 
         # local map related parameters
         self.cell_size = CELL_SIZE
@@ -29,15 +29,17 @@ class Agent:
         self.local_map_size = LOCAL_MAP_SIZE  # meter
         self.extended_local_map_size = EXTENDED_LOCAL_MAP_SIZE
 
-        # local map and extended local map
+        # local safe and extended local safe
+        self.local_safe_zone_info = None
+        self.extended_local_safe_zone_info = None
         self.local_map_info = None
         self.extended_local_map_info = None
 
         # local frontiers
-        self.local_frontier = None
+        self.safe_frontier = None
 
-        # local  node managers
-        self.local_node_manager = local_node_manager
+        # local node managers
+        self.safe_node_manager = safe_node_manager
 
         # local graph
         self.local_node_coords, self.utility, self.guidepost, self.occupancy = None, None, None, None
@@ -53,14 +55,20 @@ class Agent:
             self.trajectory_x = []
             self.trajectory_y = []
 
-
     def update_global_map(self, global_map_info):
-        # no need in training because of shallow copy
         self.global_map_info = global_map_info
 
+    def update_global_safe_zone(self, global_safe_zone):
+        # no need in training because of shallow copy
+        self.safe_zone_info = global_safe_zone
+
+    def update_local_safe_zone(self):
+        self.local_safe_zone_info = self.get_local_map(self.location, self.safe_zone_info)
+        self.extended_local_safe_zone_info = self.get_extended_local_map(self.location, self.safe_zone_info)
+
     def update_local_map(self):
-        self.local_map_info = self.get_local_map(self.location)
-        self.extended_local_map_info = self.get_extended_local_map(self.location)
+        self.local_map_info = self.get_local_map(self.location, self.global_map_info)
+        self.extended_local_map_info = self.get_extended_local_map(self.location, self.global_map_info)
 
     def update_location(self, location):
         if self.location is None:
@@ -70,29 +78,34 @@ class Agent:
         self.travel_dist += dist
 
         self.location = location
-        node = self.local_node_manager.local_nodes_dict.find((location[0], location[1]))
+        node = self.safe_node_manager.safe_nodes_dict.find((location[0], location[1]))
         if node:
             node.data.set_visited()
         if self.plot:
             self.trajectory_x.append(location[0])
             self.trajectory_y.append(location[1])
 
-    def update_local_frontiers(self):
-        self.local_frontier = get_frontier_in_map(self.extended_local_map_info)
+    def update_safe_frontiers(self):
+        self.safe_frontier = get_safe_zone_frontier(self.extended_local_safe_zone_info, self.extended_local_map_info)
 
-    def update_graph(self, global_map_info, location):
-        self.update_global_map(global_map_info)
+    def update_explore_graph(self, map_info, location):
         self.update_location(location)
+        self.update_global_map(map_info)
         self.update_local_map()
-        self.update_local_frontiers()
-        self.local_node_manager.update_local_graph(self.location,
-                                                   self.local_frontier,
-                                                   self.local_map_info,
-                                                   self.extended_local_map_info)
+        self.safe_node_manager.update_local_explore_graph(location, np.array([]), self.local_map_info,
+                                                          self.extended_local_map_info)
+
+    def update_safe_graph(self, safe_zone_info, location):
+        # self.update_location(location)
+        self.update_global_safe_zone(safe_zone_info)
+        self.update_local_safe_zone()
+        self.update_safe_frontiers()
+        self.safe_node_manager.update_local_graph(self.location, self.safe_frontier, self.local_safe_zone_info,
+                                                  self.extended_local_safe_zone_info)
 
     def update_planning_state(self, robot_locations):
-        self.local_node_coords, self.utility, self.guidepost, self.occupancy, self.local_adjacent_matrix, self.current_local_index, self.local_neighbor_indices = \
-            self.local_node_manager.get_all_node_graph(self.location, robot_locations)
+        self.local_node_coords, self.utility, self.guidepost, self.occupancy, self.local_adjacent_matrix, self.current_local_index, \
+            self.local_neighbor_indices = self.safe_node_manager.get_all_node_graph(self.location, robot_locations)
 
     def get_local_observation(self):
         local_node_coords = self.local_node_coords
@@ -112,7 +125,7 @@ class Agent:
         local_node_inputs = np.concatenate((local_node_coords, local_node_utility, local_node_guidepost, local_node_occupancy), axis=1)
         local_node_inputs = torch.FloatTensor(local_node_inputs).unsqueeze(0).to(self.device)
 
-        assert local_node_coords.shape[0] < LOCAL_NODE_PADDING_SIZE
+        assert local_node_coords.shape[0] < LOCAL_NODE_PADDING_SIZE, print(local_node_coords.shape[0])
         padding = torch.nn.ZeroPad2d((0, 0, 0, LOCAL_NODE_PADDING_SIZE - n_local_node))
         local_node_inputs = padding(local_node_inputs)
 
@@ -154,7 +167,7 @@ class Agent:
 
         return next_position, next_node_index, action_index
 
-    def get_local_map(self, location):
+    def get_local_map(self, location, map_info):
         local_map_origin_x = (location[
                                   0] - self.local_map_size / 2) // self.downsampled_cell_size * self.downsampled_cell_size
         local_map_origin_y = (location[
@@ -162,10 +175,10 @@ class Agent:
         local_map_top_x = local_map_origin_x + self.local_map_size + NODE_RESOLUTION
         local_map_top_y = local_map_origin_y + self.local_map_size + NODE_RESOLUTION
 
-        min_x = self.global_map_info.map_origin_x
-        min_y = self.global_map_info.map_origin_y
-        max_x = self.global_map_info.map_origin_x + self.cell_size * self.global_map_info.map.shape[1]
-        max_y = self.global_map_info.map_origin_y + self.cell_size * self.global_map_info.map.shape[0]
+        min_x = map_info.map_origin_x
+        min_y = map_info.map_origin_y
+        max_x = map_info.map_origin_x + self.cell_size * map_info.map.shape[1]
+        max_y = map_info.map_origin_y + self.cell_size * map_info.map.shape[0]
 
         if local_map_origin_x < min_x:
             local_map_origin_x = min_x
@@ -182,12 +195,12 @@ class Agent:
         local_map_top_y = np.around(local_map_top_y, 1)
 
         local_map_origin = np.array([local_map_origin_x, local_map_origin_y])
-        local_map_origin_in_global_map = get_cell_position_from_coords(local_map_origin, self.global_map_info)
+        local_map_origin_in_global_map = get_cell_position_from_coords(local_map_origin, map_info)
 
         local_map_top = np.array([local_map_top_x, local_map_top_y])
-        local_map_top_in_global_map = get_cell_position_from_coords(local_map_top, self.global_map_info)
+        local_map_top_in_global_map = get_cell_position_from_coords(local_map_top, map_info)
 
-        local_map = self.global_map_info.map[
+        local_map = map_info.map[
                     local_map_origin_in_global_map[1]:local_map_top_in_global_map[1],
                     local_map_origin_in_global_map[0]:local_map_top_in_global_map[0]]
 
@@ -195,7 +208,7 @@ class Agent:
 
         return local_map_info
 
-    def get_extended_local_map(self, location):
+    def get_extended_local_map(self, location, map_info):
         # expanding local map to involve all related frontiers
         local_map_origin_x = (location[
                                   0] - self.extended_local_map_size / 2) // self.downsampled_cell_size * self.downsampled_cell_size
@@ -204,10 +217,10 @@ class Agent:
         local_map_top_x = local_map_origin_x + self.extended_local_map_size + 2 * NODE_RESOLUTION
         local_map_top_y = local_map_origin_y + self.extended_local_map_size + 2 * NODE_RESOLUTION
 
-        min_x = self.global_map_info.map_origin_x
-        min_y = self.global_map_info.map_origin_y
-        max_x = self.global_map_info.map_origin_x + self.cell_size * self.global_map_info.map.shape[1]
-        max_y = self.global_map_info.map_origin_y + self.cell_size * self.global_map_info.map.shape[0]
+        min_x = map_info.map_origin_x
+        min_y = map_info.map_origin_y
+        max_x = map_info.map_origin_x + self.cell_size * map_info.map.shape[1]
+        max_y = map_info.map_origin_y + self.cell_size * map_info.map.shape[0]
 
         if local_map_origin_x < min_x:
             local_map_origin_x = min_x
@@ -224,12 +237,12 @@ class Agent:
         local_map_top_y = np.around(local_map_top_y, 1)
 
         local_map_origin = np.array([local_map_origin_x, local_map_origin_y])
-        local_map_origin_in_global_map = get_cell_position_from_coords(local_map_origin, self.global_map_info)
+        local_map_origin_in_global_map = get_cell_position_from_coords(local_map_origin, map_info)
 
         local_map_top = np.array([local_map_top_x, local_map_top_y])
-        local_map_top_in_global_map = get_cell_position_from_coords(local_map_top, self.global_map_info)
+        local_map_top_in_global_map = get_cell_position_from_coords(local_map_top, map_info)
 
-        local_map = self.global_map_info.map[
+        local_map = map_info.map[
                     local_map_origin_in_global_map[1]:local_map_top_in_global_map[1],
                     local_map_origin_in_global_map[0]:local_map_top_in_global_map[0]]
 

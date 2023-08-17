@@ -4,6 +4,7 @@ import os
 from skimage.morphology import label
 
 from parameter import *
+from sklearn.neighbors import NearestNeighbors
 
 
 def get_cell_position_from_coords(coords, map_info):
@@ -95,6 +96,62 @@ def get_frontier_in_map(map_info):
     frontier_cell = cells[frontier_cell_indices]
 
     frontier_coords = get_coords_from_cell_position(frontier_cell, map_info)
+    return frontier_coords
+
+def get_safe_zone_frontier(safe_info, map_info):
+    x_len = safe_info.map.shape[1]
+    y_len = safe_info.map.shape[0]
+
+    safe_free_cell_indices = np.where(safe_info.map.ravel(order='F') > 0)[0]
+    safe_zone = (safe_info.map == 255) * 1
+    safe_zone = np.lib.pad(safe_zone, ((1, 1), (1, 1)), 'constant', constant_values=0)
+    safe_neighbor = safe_zone[2:][:, 1:x_len + 1] + safe_zone[:y_len][:, 1:x_len + 1] + safe_zone[1:y_len + 1][:, 2:] \
+                    + safe_zone[1:y_len + 1][:, :x_len] + safe_zone[:y_len][:, 2:] + safe_zone[2:][:, :x_len] + \
+                    safe_zone[2:][:, 2:] + safe_zone[:y_len][:, :x_len]
+
+    safe_frontier_cell_1 = np.where(1 < safe_neighbor.ravel(order='F'))[0]
+    safe_frontier_cell_2 = np.where(safe_neighbor.ravel(order='F') < 8)[0]
+    safe_frontier_cell_indices = np.intersect1d(safe_frontier_cell_1, safe_frontier_cell_2)
+    safe_frontier_cell_indices = np.intersect1d(safe_free_cell_indices, safe_frontier_cell_indices)  # border of safe zone
+
+    x_len = map_info.map.shape[1]
+    y_len = map_info.map.shape[0]
+    obstacle = (map_info.map == 1) * 1
+    obstacle = np.lib.pad(obstacle, ((1, 1), (1, 1)), 'constant', constant_values=0)
+    obstacle_neighbor = obstacle[2:][:, 1:x_len + 1] + obstacle[:y_len][:, 1:x_len + 1] + obstacle[1:y_len + 1][:, 2:] \
+                        + obstacle[1:y_len + 1][:, :x_len] + obstacle[:y_len][:, 2:] + obstacle[2:][:, :x_len] + \
+                        obstacle[2:][:, 2:] + obstacle[:y_len][:, :x_len]
+    obstacle_frontier_cell = np.where(1 <= obstacle_neighbor.ravel(order='F'))[0]  # border of map
+
+    valid_safe_frontier_cell_indices = np.setdiff1d(safe_frontier_cell_indices, obstacle_frontier_cell)  # border of safe zone in free area
+
+    x = np.linspace(0, x_len - 1, x_len)
+    y = np.linspace(0, y_len - 1, y_len)
+    t1, t2 = np.meshgrid(x, y)
+    cells = np.vstack([t1.T.ravel(), t2.T.ravel()]).T
+    frontier_cell = cells[valid_safe_frontier_cell_indices]
+
+    # knn = NearestNeighbors(radius=5).fit(frontier_cell)  # select key frontiers
+    # key_frontiers_indices = []
+    # covered_frontiers_indices = []
+    # for i, frontier in enumerate(frontier_cell):
+    #     if i in covered_frontiers_indices:
+    #         pass
+    #     else:
+    #         _, indices = knn.radius_neighbors(frontier.reshape(1, 2))
+    #         if len(indices[0]) >= 10:
+    #             key_frontiers_indices.append(i)
+    #             for index in indices[0]:
+    #                 covered_frontier = frontier_cell[index]
+    #                 if not check_collision(frontier, covered_frontier, map_info):
+    #                     covered_frontiers_indices.append(index)
+    #         else:
+    #             pass
+    # key_frontiers_indices = list(set(key_frontiers_indices))
+    # frontier_cell = frontier_cell[key_frontiers_indices]
+
+    frontier_coords = get_coords_from_cell_position(frontier_cell, safe_info)
+
     return frontier_coords
 
 

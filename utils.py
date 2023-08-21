@@ -131,24 +131,24 @@ def get_safe_zone_frontier(safe_info, map_info):
     cells = np.vstack([t1.T.ravel(), t2.T.ravel()]).T
     frontier_cell = cells[valid_safe_frontier_cell_indices]
 
-    # knn = NearestNeighbors(radius=5).fit(frontier_cell)  # select key frontiers
-    # key_frontiers_indices = []
-    # covered_frontiers_indices = []
-    # for i, frontier in enumerate(frontier_cell):
-    #     if i in covered_frontiers_indices:
-    #         pass
-    #     else:
-    #         _, indices = knn.radius_neighbors(frontier.reshape(1, 2))
-    #         if len(indices[0]) >= 10:
-    #             key_frontiers_indices.append(i)
-    #             for index in indices[0]:
-    #                 covered_frontier = frontier_cell[index]
-    #                 if not check_collision(frontier, covered_frontier, map_info):
-    #                     covered_frontiers_indices.append(index)
-    #         else:
-    #             pass
-    # key_frontiers_indices = list(set(key_frontiers_indices))
-    # frontier_cell = frontier_cell[key_frontiers_indices]
+    knn = NearestNeighbors(radius=3).fit(frontier_cell)  # select key frontiers
+    key_frontiers_indices = []
+    covered_frontiers_indices = []
+    for i, frontier in enumerate(frontier_cell):
+        if i in covered_frontiers_indices:
+            pass
+        else:
+            _, indices = knn.radius_neighbors(frontier.reshape(1, 2))
+            if len(indices[0]) >= 5:
+                key_frontiers_indices.append(i)
+                for index in indices[0]:
+                    covered_frontier = frontier_cell[index]
+                    if not check_collision(frontier, covered_frontier, map_info):
+                        covered_frontiers_indices.append(index)
+            else:
+                pass
+    key_frontiers_indices = list(set(key_frontiers_indices))
+    frontier_cell = frontier_cell[key_frontiers_indices]
 
     frontier_coords = get_coords_from_cell_position(frontier_cell, safe_info)
 

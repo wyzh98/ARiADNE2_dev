@@ -85,8 +85,9 @@ class Multi_agent_worker:
 
             reward_list = []
             for robot, next_location, next_node_index in zip(self.robot_list, selected_locations, next_node_index_list):
+                dist = np.linalg.norm(next_location - robot.location)
                 self.env.step(next_location, robot.id)
-                individual_reward = robot.utility[next_node_index] / 400
+                individual_reward = robot.utility[next_node_index] / 100 - dist / 50
                 reward_list.append(individual_reward)
 
                 robot.update_explore_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
@@ -95,7 +96,8 @@ class Multi_agent_worker:
             if self.robot_list[0].utility.sum() == 0:
                 done = True
 
-            team_reward = self.env.calculate_reward() - 0.5
+            team_reward = self.env.calculate_reward() - 0.3
+
             if done:
                 team_reward += 10
 

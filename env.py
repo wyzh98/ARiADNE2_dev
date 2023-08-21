@@ -47,15 +47,26 @@ class Env:
 
 
     def import_ground_truth(self, episode_index):
-        map_dir = f'maps_simple'
+        map_dir = 'maps_simple'
         map_list = os.listdir(map_dir)
         map_index = episode_index % np.size(map_list)
-        ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1) * 255).astype(int)
+
+        if map_dir == 'maps_simple':
+            ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1) * 255).astype(int)
+        elif map_dir == 'maps_medium':
+            ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1)).astype(int)
+        else:
+            raise NotImplementedError
 
         ground_truth = block_reduce(ground_truth, 2, np.min)
-
         robot_cell = np.array(np.nonzero(ground_truth == 208))
-        robot_cell = np.array([robot_cell[1, 10], robot_cell[0, 10]])
+
+        if map_dir == 'maps_simple':
+            robot_cell = np.array([robot_cell[1, 10], robot_cell[0, 10]])
+        elif map_dir == 'maps_medium':
+            robot_cell = np.array([robot_cell[1, 64], robot_cell[0, 64]])
+        else:
+            raise NotImplementedError
 
         ground_truth = (ground_truth > 150) | ((ground_truth <= 80) & (ground_truth >= 50))
         ground_truth = ground_truth * 254 + 1
@@ -84,7 +95,7 @@ class Env:
             pre_frontiers_num = pre_frontiers_to_check.shape[0]
             delta_num = pre_frontiers_num - frontiers_num
 
-        reward += delta_num / 200
+        reward += delta_num / 100
 
         new_area = np.sum(self.safe_zone == 255) - np.sum(self.old_safe_zone == 255)
         # reward += np.clip(new_area / 1000, 0.1, 0.5)

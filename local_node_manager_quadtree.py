@@ -232,7 +232,7 @@ class LocalNode:
     def initialize_observable_frontiers(self, local_frontiers, extended_local_map_info):
         if local_frontiers.shape[0] == 0:
             self.utility = 0
-            return np.array([])
+            return local_frontiers
         else:
             observable_frontiers = []
             dist_list = np.linalg.norm(local_frontiers - self.coords, axis=-1)
@@ -292,7 +292,7 @@ class LocalNode:
         if local_frontiers.shape[0] == 0:
             self.utility = 0
             self.utility_share[0] = self.utility
-            self.observable_frontiers = []
+            self.observable_frontiers = local_frontiers
             return
 
         local_frontiers = local_frontiers.reshape(-1, 2)
@@ -306,7 +306,7 @@ class LocalNode:
         new_frontiers = local_frontiers[new_frontier_index]
 
         # add new frontiers in the observable frontiers
-        if local_frontiers.shape[0] != 0:
+        if local_frontiers.shape[0] > 0:
             dist_list = np.linalg.norm(new_frontiers - self.coords, axis=-1)
             new_frontiers_in_range = new_frontiers[dist_list < self.utility_range]
             for point in new_frontiers_in_range:

@@ -57,7 +57,6 @@ class Local_node_manager:
             all_node_coords.append(node.data.coords)
         all_node_coords = np.array(all_node_coords).reshape(-1, 2)
         utility = []
-        guidepost = []
 
         n_nodes = all_node_coords.shape[0]
         adjacent_matrix = np.ones((n_nodes, n_nodes)).astype(int)
@@ -65,7 +64,6 @@ class Local_node_manager:
         for i, coords in enumerate(all_node_coords):
             node = self.local_nodes_dict.find((coords[0], coords[1])).data
             utility.append(node.utility)
-            guidepost.append(node.visited)
             for neighbor in node.neighbor_list:
                 index = np.argwhere(local_node_coords_to_check == neighbor[0] + neighbor[1] * 1j)
                 if index or index == [[0]]:
@@ -73,7 +71,25 @@ class Local_node_manager:
                     adjacent_matrix[i, index] = 0
 
         utility = np.array(utility)
-        guidepost = np.array(guidepost)
+
+        indices = np.argwhere(utility > 0).reshape(-1)
+        utility_node_coords = all_node_coords[indices]
+        dist_dict, prev_dict = self.Dijkstra(robot_location)
+        nearest_utility_coords = robot_location
+        nearest_dist = 1e8
+        for coords in utility_node_coords:
+            if coords[0] != robot_location[0] and coords[1] != robot_location[1]:
+                dist = dist_dict[(coords[0], coords[1])]
+                if dist < nearest_dist:
+                    nearest_dist = dist
+                    nearest_utility_coords = coords
+                # print(nearest_dist, coords, nearest_utility_coords, robot_location)
+        path_coords, dist = self.a_star(robot_location, nearest_utility_coords)
+        guidepost = np.zeros_like(utility)
+        for coords in path_coords:
+            if coords[0] != robot_location[0] and coords[1] != robot_location[1]:
+                index = np.argwhere(all_node_coords[:, 0] + all_node_coords[:, 1] * 1j == coords[0] + coords[1] * 1j)[0]
+                guidepost[index] = 1
 
         robot_in_graph = self.local_nodes_dict.nearest_neighbors(robot_location.tolist(), 1)[0].data.coords
         current_index = np.argwhere(local_node_coords_to_check == robot_in_graph[0] + robot_in_graph[1] * 1j)[0][0]
@@ -165,6 +181,58 @@ class Local_node_manager:
 
         return [], 1e8
 
+    def Dijkstra(self, start):
+        q = set()
+        dist_dict = {}
+        prev_dict = {}
+
+        for node in self.local_nodes_dict.__iter__():
+            coords = node.data.coords
+            key = (coords[0], coords[1])
+            dist_dict[key] = 1e8
+            prev_dict[key] = None
+            q.add(key)
+
+        dist_dict[(start[0], start[1])] = 0
+
+        while len(q) > 0:
+
+            u = None
+            for coords in q:
+                if u is None:
+                    u = coords
+                elif dist_dict[coords] < dist_dict[u]:
+                    u = coords
+
+            q.remove(u)
+
+            node = self.local_nodes_dict.find(u).data
+            for neighbor_node_coords in node.neighbor_list:
+                v = (neighbor_node_coords[0], neighbor_node_coords[1])
+                if v in q:
+                    cost = ((neighbor_node_coords[0] - u[0]) ** 2 + (
+                            neighbor_node_coords[1] - u[1]) ** 2) ** (1 / 2)
+                    cost = np.round(cost, 2)
+                    alt = dist_dict[u] + cost
+                    if alt < dist_dict[v]:
+                        dist_dict[v] = alt
+                        prev_dict[v] = u
+
+        return dist_dict, prev_dict
+
+    def get_Dijkstra_path_and_dist(self, dist_dict, prev_dict, end):
+        dist = dist_dict[(end[0], end[1])]
+
+        path = [(end[0], end[1])]
+        prev_node = prev_dict[(end[0], end[1])]
+        while prev_node is not None:
+            path.append(prev_node)
+            temp = prev_node
+            prev_node = prev_dict[temp]
+
+        path.reverse()
+        return path[1:], np.round(dist, 2)
+
 
 class Local_node:
     def __init__(self, coords, local_frontiers, extended_local_map_info):
@@ -182,9 +250,9 @@ class Local_node:
         self.need_update_neighbor = True
 
     def initialize_observable_frontiers(self, local_frontiers, extended_local_map_info):
-        if local_frontiers == []:
+        if local_frontiers.shape[0] == 0:
             self.utility = 0
-            return []
+            return local_frontiers
         else:
             observable_frontiers = []
             dist_list = np.linalg.norm(local_frontiers - self.coords, axis=-1)
@@ -213,9 +281,10 @@ class Local_node:
                     neighbor_node = nodes_dict.find((neighbor_coords[0], neighbor_coords[1]))
                     if neighbor_node is None:
                         cell = get_cell_position_from_coords(neighbor_coords, extended_local_map_info)
-                        if extended_local_map_info.map[cell[1], cell[0]] == 1:
-                            self.neighbor_matrix[i, j] = 1
-                        continue
+                        if cell[0] < extended_local_map_info.map.shape[1] and cell[1] < extended_local_map_info.map.shape[0]:
+                            if extended_local_map_info.map[cell[1], cell[0]] == 1:
+                                self.neighbor_matrix[i, j] = 1
+                            continue
                     else:
                         neighbor_node = neighbor_node.data
                         collision = check_collision(self.coords, neighbor_coords, extended_local_map_info)
@@ -244,7 +313,7 @@ class Local_node:
         if local_frontiers.shape[0] == 0:
             self.utility = 0
             self.utility_share[0] = self.utility
-            self.observable_frontiers = []
+            self.observable_frontiers = local_frontiers
             return
 
         local_frontiers = local_frontiers.reshape(-1, 2)
@@ -258,7 +327,7 @@ class Local_node:
         new_frontiers = local_frontiers[new_frontier_index]
 
         # add new frontiers in the observable frontiers
-        if new_frontiers != []:
+        if new_frontiers.shape[0] > 0:
             dist_list = np.linalg.norm(new_frontiers - self.coords, axis=-1)
             new_frontiers_in_range = new_frontiers[dist_list < self.utility_range]
             for point in new_frontiers_in_range:
@@ -269,6 +338,19 @@ class Local_node:
         if self.utility <= MIN_UTILITY:
             self.utility = 0
         self.utility_share[0] = self.utility
+
+    def delete_observed_frontiers(self, observed_frontiers):
+        # remove observed frontiers in the observable frontiers
+        observed_frontiers = observed_frontiers.reshape(-1, 2)
+        old_frontier_to_check = self.observable_frontiers[:, 0] + self.observable_frontiers[:, 1] * 1j
+        observed_frontiers_to_check = observed_frontiers[:, 0] + observed_frontiers[:, 1] * 1j
+        to_observe_index = np.where(
+            np.isin(old_frontier_to_check, observed_frontiers_to_check, assume_unique=True) == False)
+        self.observable_frontiers = self.observable_frontiers[to_observe_index]
+
+        self.utility = self.observable_frontiers.shape[0]
+        if self.utility <= MIN_UTILITY:
+            self.utility = 0
 
     def set_visited(self):
         self.visited = 1

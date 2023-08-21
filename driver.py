@@ -43,7 +43,7 @@ def main():
     log_alpha_optimizer = optim.Adam([log_alpha], lr=1e-4)
 
     # target entropy for SAC
-    entropy_target = 0.05 * (-np.log(1 / LOCAL_K_SIZE))
+    entropy_target = 0.1 * (-np.log(1 / LOCAL_K_SIZE))
 
     curr_episode = 0
     target_q_update_counter = 1

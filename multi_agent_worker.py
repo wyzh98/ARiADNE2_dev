@@ -85,7 +85,7 @@ class Multi_agent_worker:
             reward_list = []
             for robot, next_location, next_node_index in zip(self.robot_list, selected_locations, next_node_index_list):
                 self.env.step(next_location, robot.id)
-                individual_reward = robot.utility[next_node_index] / 400
+                individual_reward = robot.utility[next_node_index] / 50
                 reward_list.append(individual_reward)
 
                 robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
@@ -133,6 +133,9 @@ class Multi_agent_worker:
         plt.imshow(self.env.robot_belief, cmap='gray')
         plt.axis('off')
         color_list = ['r', 'b', 'g', 'y']
+        frontiers = get_frontier_in_map(self.env.belief_info)
+        frontiers = get_cell_position_from_coords(frontiers, self.env.belief_info).reshape(-1, 2)
+        plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r', s=1)
         for robot in self.robot_list:
             c = color_list[robot.id]
             robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
@@ -146,15 +149,15 @@ class Multi_agent_worker:
 
         plt.subplot(1, 2, 1)
         plt.imshow(self.env.robot_belief, cmap='gray')
+        plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r', s=1)
         for robot in self.robot_list:
             c = color_list[robot.id]
             if robot.id == 0:
                 nodes = get_cell_position_from_coords(robot.local_node_coords, robot.global_map_info)
-                frontiers = get_cell_position_from_coords(robot.local_frontier, robot.global_map_info)
                 plt.imshow(robot.global_map_info.map, cmap='gray')
                 plt.axis('off')
                 plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.utility, zorder=2)
-                # plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r')
+
             robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
             plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=16, zorder=5)
 

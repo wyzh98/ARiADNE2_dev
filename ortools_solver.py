@@ -79,11 +79,11 @@ def solve_vrp(distance_matrix, robot_indices):
     routing.AddDimension(
         transit_callback_index,
         0,  # no slack
-        200,  # vehicle maximum travel distance
+        2000,  # vehicle maximum travel distance
         True,  # start cumul to zero
         dimension_name)
     distance_dimension = routing.GetDimensionOrDie(dimension_name)
-    distance_dimension.SetGlobalSpanCostCoefficient(200)
+    distance_dimension.SetGlobalSpanCostCoefficient(50)
 
     # Setting first solution heuristic.
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()

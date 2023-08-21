@@ -1,9 +1,12 @@
+import time
+
 import numpy as np
 import imageio
 import os
 from skimage.morphology import label
 from copy import deepcopy
 from skimage.measure import block_reduce
+from scipy.signal import decimate
 
 from parameter import *
 
@@ -47,8 +50,8 @@ def get_free_area_coords(map_info):
 def get_ground_truth_node_coords(global_map_info):
     x_min = (global_map_info.map_origin_x // NODE_RESOLUTION) * NODE_RESOLUTION
     y_min = (global_map_info.map_origin_y // NODE_RESOLUTION) * NODE_RESOLUTION
-    x_max = ((global_map_info.map_origin_x + global_map_info.map.shape[1] * CELL_SIZE) // NODE_RESOLUTION - 1) * NODE_RESOLUTION
-    y_max = ((global_map_info.map_origin_y + global_map_info.map.shape[0] * CELL_SIZE) // NODE_RESOLUTION - 1) * NODE_RESOLUTION
+    x_max = ((global_map_info.map_origin_x + global_map_info.map.shape[1] * CELL_SIZE) // NODE_RESOLUTION) * NODE_RESOLUTION
+    y_max = ((global_map_info.map_origin_y + global_map_info.map.shape[0] * CELL_SIZE) // NODE_RESOLUTION) * NODE_RESOLUTION
 
     x_coords = np.arange(x_min, x_max, NODE_RESOLUTION)
     y_coords = np.arange(y_min, y_max, NODE_RESOLUTION)
@@ -104,8 +107,8 @@ def get_local_node_coords(location, local_map_info):
 
 def get_frontier_in_map(map_info_to_copy):
     map_info = deepcopy(map_info_to_copy)
-    map_info.map = block_reduce(map_info.map, FRONTIER_CLUSTER, np.min)
-    map_info.cell_size = FRONTIER_CLUSTER * map_info.cell_size
+    # map_info.map = block_reduce(map_info.map, FRONTIER_CLUSTER, np.min)
+    # map_info.cell_size = FRONTIER_CLUSTER * map_info.cell_size
     x_len = map_info.map.shape[1]
     y_len = map_info.map.shape[0]
     unknown = (map_info.map == 127) * 1
@@ -127,7 +130,8 @@ def get_frontier_in_map(map_info_to_copy):
 
     if frontier_cell.shape[0] > 0:
         frontier_coords = get_coords_from_cell_position(frontier_cell, map_info)
-        frontier_coords.reshape(-1, 2)
+        frontier_coords = frontier_coords.reshape(-1 ,2)
+        frontier_coords = frontier_down_sample(frontier_coords)
     else:
         frontier_coords = frontier_cell
     return frontier_coords
@@ -173,6 +177,25 @@ def get_partial_map_from_center(original_map_info, center_coords, partial_map_si
     partial_map_info = Map_info(partial_map, partial_map_origin_x, partial_map_origin_y, original_map_info.cell_size)
 
     return partial_map_info
+
+
+def frontier_down_sample(data, voxel_size=FRONTIER_CELL_SIZE):
+    voxel_indices = np.array(data / voxel_size, dtype=int).reshape(-1, 2)
+
+    voxel_dict = {}
+    for i, point in enumerate(data):
+        voxel_index = tuple(voxel_indices[i])
+
+        if voxel_index not in voxel_dict:
+            voxel_dict[voxel_index] = point
+        else:
+            current_point = voxel_dict[voxel_index]
+            if np.linalg.norm(point - np.array(voxel_index) * voxel_size) < np.linalg.norm(
+                    current_point - np.array(voxel_index) * voxel_size):
+                voxel_dict[voxel_index] = point
+
+    downsampled_data = np.array(list(voxel_dict.values()))
+    return downsampled_data
 
 
 def check_collision(start, end, map_info):

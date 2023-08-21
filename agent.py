@@ -108,7 +108,7 @@ class Agent:
         local_node_coords = np.concatenate((local_node_coords[:, 0].reshape(-1, 1) - current_local_node_coords[0],
                                             local_node_coords[:, 1].reshape(-1, 1) - current_local_node_coords[1]),
                                            axis=-1) / LOCAL_MAP_SIZE
-        local_node_utility = local_node_utility / 50
+        local_node_utility = local_node_utility / 30
         local_node_inputs = np.concatenate((local_node_coords, local_node_utility, local_node_guidepost, local_node_occupancy), axis=1)
         local_node_inputs = torch.FloatTensor(local_node_inputs).unsqueeze(0).to(self.device)
 

@@ -49,6 +49,6 @@ class RLRunner(Runner):
 if __name__ == '__main__':
     ray.init()
     runner = RLRunner.remote(0)
-    job_id = runner.do_job.remote(36)
+    job_id = runner.do_job.remote(23)
     out = ray.get(job_id)
     print(out[1])

@@ -7,6 +7,8 @@ from parameter import *
 from utils import *
 from ortools_solver import solve_vrp
 
+np.random.seed(47)
+
 
 class Ground_truth_planner:
     def __init__(self, ground_truth_info):
@@ -15,7 +17,7 @@ class Ground_truth_planner:
         self.ground_truth_node_manager = Ground_truth_node_manager(self.ground_truth_info)
         self.last_viewpoints = None
 
-    def plan_coverage_paths(self, belief_info, robot_locations):
+    def plan_coverage_paths(self, belief_info, robot_locations, map_change):
         self.ground_truth_node_manager.update_ground_truth_graph(belief_info)
         for coords in robot_locations:
             node = self.ground_truth_node_manager.ground_truth_nodes_dict.find(coords.tolist())
@@ -27,6 +29,7 @@ class Ground_truth_planner:
         q_array = self.ground_truth_node_manager.ground_truth_node_coords[q_indices]
 
         if self.last_viewpoints:
+            self.max_iteration_step = 5
             nodes_dict = deepcopy(self.ground_truth_node_manager.ground_truth_nodes_dict)
             q_array_prime = deepcopy(q_array)
             v_list = [location for location in robot_locations]
@@ -71,12 +74,15 @@ class Ground_truth_planner:
             best_paths = paths
             c_best = dist
 
+            if not map_change:
+                self.last_viewpoints = v_list[len(robot_locations):]
+                return best_paths
+
         for i in range(self.max_iteration_step):
             nodes_dict = deepcopy(self.ground_truth_node_manager.ground_truth_nodes_dict)
             q_array_prime = deepcopy(q_array)
             v_list = [location for location in robot_locations]
             q_utility = self.ground_truth_node_manager.utility[q_indices]
-
             while q_array_prime.shape[0] > 0 and q_utility.sum() > 0:
                 indices = np.array(range(q_array_prime.shape[0]))
                 weights = q_utility / q_utility.sum()
@@ -155,19 +161,24 @@ class Ground_truth_planner:
             for index1, index2 in zip(path[:-1], path[1:]):
                 path_coords += path_matrix[index1][index2]
             if len(path_coords) == 0:
-                max_utility = 0
-                max_utility_coords = robot_location
-                for coords in viewpoints[len(robot_locations):]:
-                    node = self.ground_truth_node_manager.ground_truth_nodes_dict.find(coords.tolist())
-                    utility = node.data.utility
-                    if utility > max_utility:
-                        max_utility = utility
-                        max_utility_coords = node.data.coords
+                indices = np.argwhere(self.ground_truth_node_manager.utility > 0).reshape(-1)
+                node_coords = self.ground_truth_node_manager.ground_truth_node_coords[indices]
+                dist_dict, prev_dict = self.ground_truth_node_manager.Dijkstra(robot_location)
+                nearest_utility_coords = node_coords[0]
+                nearest_dist = 1e8
+                for coords in node_coords:
+                    if coords[0] != robot_location[0] and coords[1] != robot_location[1]:
+                        dist = dist_dict[(coords[0], coords[1])]
+                        if dist < nearest_dist:
+                            nearest_dist = dist
+                            nearest_utility_coords = coords
+                        # print(nearest_dist, coords, nearest_utility_coords, robot_location)
 
-                path_coords, dist = self.ground_truth_node_manager.a_star(robot_location, max_utility_coords)
+                path_coords, dist = self.ground_truth_node_manager.a_star(robot_location, nearest_utility_coords)
+                if len(path_coords) == 0:
+                    print("nearest", nearest_utility_coords, robot_location, node_coords.shape)
 
             paths_coords.append(path_coords)
-
         return paths_coords, dist
 
 
@@ -218,22 +229,10 @@ class Ground_truth_node_manager:
             self.ground_truth_frontiers = self.ground_truth_frontiers[valid_indices]
 
         frontiers = get_frontier_in_map(belief_map_info)
-        if frontiers.shape[0] > 0:
-            if self.ground_truth_frontiers.shape[0] == 0:
-                self.ground_truth_frontiers = frontiers
-            else:
-                self.ground_truth_frontiers = self.ground_truth_frontiers.reshape(-1, 2)
-                frontiers = frontiers.reshape(-1, 2)
-                ground_truth_frontier_to_check = self.ground_truth_frontiers[:, 0] + self.ground_truth_frontiers[:, 1] * 1j
-                frontiers_to_check = frontiers[:, 0] + frontiers[:, 1] * 1j
-                to_add_index = np.where(
-                    np.isin(frontiers_to_check, ground_truth_frontier_to_check, assume_unique=True) == False)
-                frontiers = frontiers[to_add_index]
-                self.ground_truth_frontiers = np.concatenate((self.ground_truth_frontiers, frontiers.reshape(-1, 2)), axis=0)
 
         for node in self.ground_truth_nodes_dict.__iter__():
             if node.data.utility > 0:
-                node.data.update_node_observable_frontiers(self.ground_truth_frontiers)
+                node.data.update_node_observable_frontiers(self.ground_truth_frontiers, frontiers, belief_map_info)
 
         utility = []
         for coords in self.ground_truth_node_coords:
@@ -371,6 +370,7 @@ class Ground_truth_node_manager:
         path.reverse()
         return path[1:], np.round(dist, 2)
 
+
 class Ground_truth_node:
     def __init__(self, coords, ground_truth_frontiers, ground_truth_map_info):
         self.coords = coords
@@ -384,9 +384,9 @@ class Ground_truth_node:
         self.neighbor_list.append(self.coords)
 
     def initialize_observable_frontiers(self, ground_truth_frontiers, ground_truth_map_info):
-        if ground_truth_frontiers == []:
+        if ground_truth_frontiers.shape[0] == 0:
             self.utility = 0
-            return []
+            return ground_truth_frontiers
         else:
             observable_frontiers = []
             dist_list = np.linalg.norm(ground_truth_frontiers - self.coords, axis=-1)
@@ -415,9 +415,10 @@ class Ground_truth_node:
                     neighbor_node = nodes_dict.find((neighbor_coords[0], neighbor_coords[1]))
                     if neighbor_node is None:
                         cell = get_cell_position_from_coords(neighbor_coords, ground_truth_map_info)
-                        if ground_truth_map_info.map[cell[1], cell[0]] == 1:
-                            self.neighbor_matrix[i, j] = 1
-                        continue
+                        if cell[0] < ground_truth_map_info.map.shape[1] and cell[1] < ground_truth_map_info.map.shape[0]:
+                            if ground_truth_map_info.map[cell[1], cell[0]] == 1:
+                                self.neighbor_matrix[i, j] = 1
+                            continue
                     else:
                         neighbor_node = neighbor_node.data
                         collision = check_collision(self.coords, neighbor_coords, ground_truth_map_info)
@@ -430,20 +431,25 @@ class Ground_truth_node:
                             neighbor_node.neighbor_matrix[neighbor_matrix_x, neighbor_matrix_y] = 1
                             neighbor_node.neighbor_list.append(self.coords)
 
-    def update_node_observable_frontiers(self, ground_truth_frontiers):
-
-        # remove observed frontiers in the observable frontiers
-        if ground_truth_frontiers.shape[0] == 0:
-            self.utility = 0
-            self.observable_frontiers = []
-            return
+    def update_node_observable_frontiers(self, ground_truth_frontiers, frontiers, belief_info):
 
         ground_truth_frontiers = ground_truth_frontiers.reshape(-1, 2)
         old_frontier_to_check = self.observable_frontiers[:, 0] + self.observable_frontiers[:, 1] * 1j
-        local_frontiers_to_check = ground_truth_frontiers[:, 0] + ground_truth_frontiers[:, 1] * 1j
+        local_frontier_to_check = ground_truth_frontiers[:, 0] + ground_truth_frontiers[:, 1] * 1j
         to_observe_index = np.where(
-            np.isin(old_frontier_to_check, local_frontiers_to_check, assume_unique=True) == True)
+            np.isin(old_frontier_to_check, local_frontier_to_check, assume_unique=True) == True)
         self.observable_frontiers = self.observable_frontiers[to_observe_index]
+
+        frontiers.reshape(-1, 2)
+        new_frontiers = []
+        if frontiers.shape[0] > 0:
+            for frontier in frontiers:
+                if np.linalg.norm(self.coords - frontier) < self.utility_range:
+                    if not check_collision(self.coords, frontier, belief_info):
+                        new_frontiers.append(frontier)
+            new_frontiers = np.array(new_frontiers)
+            if len(new_frontiers) > 0:
+                self.observable_frontiers = np.concatenate((self.observable_frontiers, new_frontiers), axis=0)
 
         self.utility = self.observable_frontiers.shape[0]
         if self.utility <= MIN_UTILITY:
@@ -463,5 +469,5 @@ class Ground_truth_node:
             self.utility = 0
 
     def set_visited(self):
-        self.observable_frontiers = []
+        self.observable_frontiers = np.array([[], []]).reshape(0, 2)
         self.utility = 0

@@ -43,7 +43,7 @@ def main():
     log_alpha_optimizer = optim.Adam([log_alpha], lr=1e-4)
 
     # target entropy for SAC
-    entropy_target = 0.05 * (-np.log(1 / LOCAL_K_SIZE))
+    entropy_target = 0.1 * (-np.log(1 / LOCAL_K_SIZE))
 
     curr_episode = 0
     target_q_update_counter = 1
@@ -130,6 +130,10 @@ def main():
             curr_episode += 1
             job_list.append(meta_agents[info['id']].job.remote(weights_set, curr_episode))
 
+            if len(experience_buffer[0]) >= REPLAY_SIZE:
+                for i in range(len(experience_buffer)):
+                    experience_buffer[i] = experience_buffer[i][-REPLAY_SIZE:]
+
             # start training
             if curr_episode % 1 == 0 and len(experience_buffer[0]) >= MINIMUM_BUFFER_SIZE:
                 print("training")
@@ -142,7 +146,7 @@ def main():
                 indices = range(len(experience_buffer[0]))
 
                 # training for n times each step
-                for j in range(4):
+                for j in range(8):
                     # randomly sample a batch data
                     sample_indices = random.sample(indices, BATCH_SIZE)
                     rollouts = []

@@ -25,7 +25,6 @@ class Multi_agent_worker:
         self.env = Env(global_step, plot=self.save_image)
         self.n_agent = N_AGENTS
         self.local_node_manager = Local_node_manager(plot=self.save_image)
-        self.env.expert_planner = Expert_planner(self.local_node_manager)
 
         self.robot_list = [Agent(i, policy_net, self.local_node_manager, self.device, self.save_image) for i in
                            range(N_AGENTS)]
@@ -42,15 +41,11 @@ class Multi_agent_worker:
         for robot in self.robot_list:    
             robot.update_planning_state(self.env.robot_locations)
 
+        paths = self.env.get_ground_truth_paths()
+        expert_locations = []
+        for path in paths:
+            expert_locations.append(np.array(path[0]))
         for i in range(MAX_EPISODE_STEP):
-            paths = self.env.get_ground_truth_paths()
-            expert_locations = []
-            for path in paths:
-                if path != []:
-                    expert_locations.append(np.array(path[0]))
-                else:
-                    expert_locations.append(None)
-
             selected_locations = []
             dist_list = []
             next_node_index_list = []
@@ -72,20 +67,18 @@ class Multi_agent_worker:
                 dist_list.append(np.linalg.norm(next_location - robot.location))
                 next_node_index_list.append(next_node_index)
 
-            # selected_locations = []
-            # for path in paths:
-            #     if path:
-            #         selected_locations.append(np.array(path[0]))
+            #selected_locations = []
+            #for path in paths:
+            #    if path:
+            #        selected_locations.append(np.array(path[0]))
 
             reward_list = []
             for selected_location, expert_location in zip(selected_locations, expert_locations):
                 if expert_location is not None:
                     #reward = np.linalg.norm(selected_location - expert_location) / (4 * NODE_RESOLUTION * 1.41)
                     #reward = np.round((-np.exp(reward) + np.exp(0)) / (np.exp(1) - np.exp(0)), 2)
-                    reward = -np.round(np.linalg.norm(selected_location - expert_location) / (4 * NODE_RESOLUTION * 1.41))
-                else:
-                    reward = 0
-                reward_list.append(reward)
+                    reward = -np.round(np.linalg.norm(selected_location - expert_location) / (4 * NODE_RESOLUTION * 1.41), 3)
+                    reward_list.append(reward)
             # print(reward_list)
 
             selected_locations = np.array(selected_locations).reshape(-1, 2)
@@ -119,11 +112,25 @@ class Multi_agent_worker:
             for robot in self.robot_list:
                 robot.update_planning_state(self.env.robot_locations)
 
-            if self.save_image:
-                self.plot_local_env(i, paths)
+            # if self.save_image:
+            #     self.plot_local_env(i, paths)
 
             if self.robot_list[0].utility.sum() == 0:
                 done = True
+
+            exception = False
+            if not done:
+                paths = self.env.get_ground_truth_paths()
+                if self.save_image:
+                    self.plot_local_env(i, paths)
+                expert_locations = []
+                for path in paths:
+                    if path == []:
+                        exception = True
+                        print(self.robot_list[0].utility.sum())
+                        print(self.env.ground_truth_planner.ground_truth_node_manager.utility.sum())
+                        break
+                    expert_locations.append(np.array(path[0]))
 
             # team_reward = self.env.calculate_reward() - 0.5
             # if done:
@@ -136,6 +143,9 @@ class Multi_agent_worker:
             if done:
                 if self.save_image:
                     self.plot_local_env(i + 1)
+                break
+
+            if exception:
                 break
 
         # save metrics
@@ -155,12 +165,34 @@ class Multi_agent_worker:
             make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.explored_rate)
 
     def plot_local_env(self, step, planned_paths=None):
+        self.env.global_frontiers = get_frontier_in_map(self.env.belief_info)
         plt.switch_backend('agg')
+        color_list = ['r', 'b', 'g', 'y']
         plt.figure(figsize=(15, 5))
-        plt.subplot(1, 2, 2)
+        plt.subplot(1, 3, 3)
+        plt.imshow(self.env.ground_truth_info.map, cmap='gray')
+        nodes = get_cell_position_from_coords(self.env.ground_truth_planner.ground_truth_node_manager.ground_truth_node_coords, self.env.ground_truth_info)
+        plt.axis('off')
+        plt.scatter(nodes[:, 0], nodes[:, 1], c=self.env.ground_truth_planner.ground_truth_node_manager.utility, zorder=2)
+        frontiers = get_cell_position_from_coords(self.env.ground_truth_planner.ground_truth_node_manager.ground_truth_frontiers, self.env.belief_info)
+        frontiers = frontiers.reshape(-1, 2)
+        plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r', s=1, zorder=10)
+
+        if planned_paths:
+            robot = self.robot_list[0]
+            for i, path in enumerate(planned_paths):
+                if path != []:
+                    c = color_list[i]
+                    plt.plot((np.array(path)[:, 0] - robot.global_map_info.map_origin_x) / robot.cell_size,
+                            (np.array(path)[:, 1] - robot.global_map_info.map_origin_y) / robot.cell_size, c,
+                            linewidth=2, zorder=1)
+
+        plt.subplot(1, 3, 2)
         plt.imshow(self.env.robot_belief, cmap='gray')
         plt.axis('off')
-        color_list = ['r', 'b', 'g', 'y']
+        frontiers = get_cell_position_from_coords(self.env.global_frontiers, self.env.belief_info)
+        frontiers = frontiers.reshape(-1, 2)
+        plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r', s=1)
         for robot in self.robot_list:
             c = color_list[robot.id]
             robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
@@ -172,9 +204,9 @@ class Multi_agent_worker:
             #   plt.plot((self.local_node_manager.x[i] - self.local_map_info.map_origin_x) / self.cell_size,
             #            (self.local_node_manager.y[i] - self.local_map_info.map_origin_y) / self.cell_size, 'tan', zorder=1)
 
-        plt.subplot(1, 2, 1)
+        plt.subplot(1, 3, 1)
         plt.imshow(self.env.robot_belief, cmap='gray')
-        frontiers = get_cell_position_from_coords(self.env.ground_truth_planner.ground_truth_node_manager.ground_truth_frontiers, self.env.belief_info)
+        frontiers = get_cell_position_from_coords(self.env.global_frontiers, self.env.belief_info)
         frontiers = frontiers.reshape(-1, 2)
         plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r', s=1)
         for robot in self.robot_list:
@@ -187,15 +219,6 @@ class Multi_agent_worker:
 
             robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
             plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=16, zorder=5)
-
-        if planned_paths:
-            robot = self.robot_list[0]
-            for i, path in enumerate(planned_paths):
-                if path != []:
-                    c = color_list[i]
-                    plt.plot((np.array(path)[:, 0] - robot.global_map_info.map_origin_x) / robot.cell_size,
-                            (np.array(path)[:, 1] - robot.global_map_info.map_origin_y) / robot.cell_size, c,
-                            linewidth=2, zorder=1)
 
         plt.axis('off')
         plt.suptitle('Explored ratio: {:.4g}  Travel distance: {:.4g}'.format(self.env.explored_rate,

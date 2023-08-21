@@ -48,6 +48,7 @@ class Env:
                                             self.ground_truth)
         self.old_belief = deepcopy(self.robot_belief)
         self.global_frontiers = get_frontier_in_map(self.belief_info)
+        self.old_frontiers = deepcopy(self.global_frontiers)
 
         if self.plot:
             self.frame_files = []
@@ -57,10 +58,10 @@ class Env:
 
 
     def import_ground_truth(self, episode_index):
-        map_dir = f'maps'
+        map_dir = f'maps_medium'
         map_list = os.listdir(map_dir)
         map_index = episode_index % np.size(map_list)
-        ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1) * 255).astype(int)
+        ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1)).astype(int)
 
         ground_truth = block_reduce(ground_truth, 2, np.min)
 
@@ -119,6 +120,18 @@ class Env:
         return paths
 
     def get_ground_truth_paths(self):
-        paths = self.ground_truth_planner.plan_coverage_paths(self.belief_info, self.robot_locations)
+        self.global_frontiers = get_frontier_in_map(self.belief_info).reshape(-1, 2)
+        frontiers_to_check = self.global_frontiers[:, 0] + self.global_frontiers[:, 1] * 1j
+        pre_frontiers_to_check = self.old_frontiers[:, 0] + self.old_frontiers[:, 1] * 1j
+        frontiers_num = np.intersect1d(frontiers_to_check, pre_frontiers_to_check).shape[0]
+        pre_frontiers_num = pre_frontiers_to_check.shape[0]
+        delta_num = pre_frontiers_num - frontiers_num
+        if delta_num == 0:
+            map_change = False
+        else:
+            map_change = True
+        self.old_frontiers = self.global_frontiers
+
+        paths = self.ground_truth_planner.plan_coverage_paths(self.belief_info, self.robot_locations, map_change)
         return paths
 

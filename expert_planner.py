@@ -96,7 +96,7 @@ class Expert_planner:
             path_coords = []
             for index1, index2 in zip(path[:-1], path[1:]):
                 path_coords += path_matrix[index1][index2]
-            if len(path_coords) == 0:
+            if robot_location[0] == path_coords[-1][0] and robot_location[1] == path_coords[-1][1]:
                 max_utility = 0
                 max_utility_coords = robot_location
                 for coords in viewpoints[len(robot_locations):]:

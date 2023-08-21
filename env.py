@@ -95,7 +95,7 @@ class Env:
             pre_frontiers_num = pre_frontiers_to_check.shape[0]
             delta_num = pre_frontiers_num - frontiers_num
 
-        reward += delta_num / 50
+        reward += delta_num / 200
 
         new_area = np.sum(self.safe_zone == 255) - np.sum(self.old_safe_zone == 255)
         # reward += np.clip(new_area / 1000, 0.1, 0.5)

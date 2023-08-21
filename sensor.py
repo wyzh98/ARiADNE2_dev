@@ -15,7 +15,7 @@ def collision_check(x0, y0, x1, y1, ground_truth, robot_belief):
     dy *= 2
 
     collision_flag = 0
-    max_collision = 10
+    max_collision = 2
 
     while 0 <= x < ground_truth.shape[1] and 0 <= y < ground_truth.shape[0]:
         k = ground_truth.item(y, x)
@@ -56,7 +56,7 @@ def update_coverage(x0, y0, x1, y1, ground_truth, safe_zone):
     dy *= 2
 
     collision_flag = 0
-    max_collision = 1
+    max_collision = 2
 
     while 0 <= x < ground_truth.shape[1] and 0 <= y < ground_truth.shape[0]:
         k = ground_truth.item(y, x)

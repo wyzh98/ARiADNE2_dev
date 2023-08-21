@@ -137,6 +137,9 @@ class Multi_agent_worker:
         plt.imshow(self.env.robot_belief, cmap='gray', vmin=-255)
         plt.axis('off')
         color_list = ['r', 'b', 'g', 'y']
+        frontiers = get_frontier_in_map(self.env.belief_info)
+        frontiers = get_cell_position_from_coords(frontiers, self.env.belief_info).reshape(-1, 2)
+        plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r', s=1)
         for robot in self.robot_list:
             c = color_list[robot.id]
             robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)

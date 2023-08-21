@@ -1,6 +1,7 @@
 import numpy as np
 import imageio
 import os
+import copy
 from skimage.morphology import label
 
 from parameter import *
@@ -15,7 +16,6 @@ def get_cell_position_from_coords(coords, map_info):
     cell_y = ((coords_y - map_info.map_origin_y) / map_info.cell_size)
 
     cell_position = np.around(np.stack((cell_x, cell_y), axis=-1)).astype(int)
-    assert False not in (cell_position.flatten() >= 0)
     if cell_position.shape[0] == 1:
         return cell_position[0]
     else:
@@ -99,6 +99,9 @@ def get_frontier_in_map(map_info):
     return frontier_coords
 
 def get_safe_zone_frontier(safe_info, map_info):
+    safe_info = copy.deepcopy(safe_info)
+    map_info = copy.deepcopy(map_info)
+
     x_len = safe_info.map.shape[1]
     y_len = safe_info.map.shape[0]
 
@@ -131,28 +134,31 @@ def get_safe_zone_frontier(safe_info, map_info):
     cells = np.vstack([t1.T.ravel(), t2.T.ravel()]).T
     frontier_cell = cells[valid_safe_frontier_cell_indices]
 
-    knn = NearestNeighbors(radius=3).fit(frontier_cell)  # select key frontiers
-    key_frontiers_indices = []
-    covered_frontiers_indices = []
-    for i, frontier in enumerate(frontier_cell):
-        if i in covered_frontiers_indices:
-            pass
-        else:
-            _, indices = knn.radius_neighbors(frontier.reshape(1, 2))
-            if len(indices[0]) >= 5:
-                key_frontiers_indices.append(i)
-                for index in indices[0]:
-                    covered_frontier = frontier_cell[index]
-                    if not check_collision(frontier, covered_frontier, map_info):
-                        covered_frontiers_indices.append(index)
-            else:
-                pass
-    key_frontiers_indices = list(set(key_frontiers_indices))
-    frontier_cell = frontier_cell[key_frontiers_indices]
-
-    frontier_coords = get_coords_from_cell_position(frontier_cell, safe_info)
-
+    if frontier_cell.shape[0] > 0:
+        frontier_coords = get_coords_from_cell_position(frontier_cell, safe_info)
+        frontier_coords = frontier_down_sample(frontier_coords.reshape(-1, 2))
+    else:
+        frontier_coords = frontier_cell
     return frontier_coords
+
+
+def frontier_down_sample(data, voxel_size=FRONTIER_CELL_SIZE):
+    voxel_indices = np.array(data / voxel_size, dtype=int).reshape(-1, 2)
+
+    voxel_dict = {}
+    for i, point in enumerate(data):
+        voxel_index = tuple(voxel_indices[i])
+
+        if voxel_index not in voxel_dict:
+            voxel_dict[voxel_index] = point
+        else:
+            current_point = voxel_dict[voxel_index]
+            if np.linalg.norm(point - np.array(voxel_index) * voxel_size) < np.linalg.norm(
+                    current_point - np.array(voxel_index) * voxel_size):
+                voxel_dict[voxel_index] = point
+
+    downsampled_data = np.array(list(voxel_dict.values()))
+    return downsampled_data
 
 
 def get_partial_map_from_center(original_map_info, center_coords, partial_map_size):
@@ -237,7 +243,7 @@ def check_collision(start, end, map_info):
 
 
 def make_gif(path, n, frame_files, rate):
-    with imageio.get_writer('{}/{}_explored_rate_{:.4g}.gif'.format(path, n, rate), mode='I', duration=0.1) as writer:
+    with imageio.get_writer('{}/{}_explored_rate_{:.4g}.gif'.format(path, n, rate), mode='I', duration=0.5) as writer:
         for frame in frame_files:
             image = imageio.imread(frame)
             writer.append_data(image)

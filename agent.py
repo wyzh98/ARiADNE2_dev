@@ -92,7 +92,7 @@ class Agent:
         self.update_location(location)
         self.update_global_map(map_info)
         self.update_local_map()
-        self.safe_node_manager.update_local_explore_graph(location, np.array([]), self.local_map_info,
+        self.safe_node_manager.update_local_explore_graph(self.location, np.array([]), self.local_map_info,
                                                           self.extended_local_map_info)
 
     def update_safe_graph(self, safe_zone_info, location):
@@ -100,8 +100,8 @@ class Agent:
         self.update_global_safe_zone(safe_zone_info)
         self.update_local_safe_zone()
         self.update_safe_frontiers()
-        self.safe_node_manager.update_local_graph(self.location, self.safe_frontier, self.local_safe_zone_info,
-                                                  self.extended_local_safe_zone_info)
+        self.safe_node_manager.update_local_safe_graph(self.location, self.safe_frontier, self.local_safe_zone_info,
+                                                       self.extended_local_safe_zone_info)
 
     def update_planning_state(self, robot_locations):
         self.local_node_coords, self.utility, self.guidepost, self.occupancy, self.local_adjacent_matrix, self.current_local_index, \

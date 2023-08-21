@@ -52,7 +52,7 @@ class Multi_agent_worker:
                 next_location, next_node_index, action_index = robot.select_next_waypoint(local_observation)
                 robot.save_action(action_index)
 
-                node = robot.safe_node_manager.safe_nodes_dict.find((robot.location[0], robot.location[1]))
+                node = robot.safe_node_manager.all_nodes_dict.find((robot.location[0], robot.location[1]))
                 check = np.array(node.data.neighbor_list)
                 assert next_location[0] + next_location[1] * 1j in check[:, 0] + check[:, 1] * 1j, print(next_location,
                                                                                                          robot.location,
@@ -71,7 +71,7 @@ class Multi_agent_worker:
                 solved_locations = selected_locations_in_arriving_sequence[:j]
                 while selected_location[0] + selected_location[1] * 1j in solved_locations[:, 0] + solved_locations[:, 1] * 1j:
                     id = arriving_sequence[j]
-                    nearby_nodes = self.robot_list[id].safe_node_manager.safe_nodes_dict.nearest_neighbors(
+                    nearby_nodes = self.robot_list[id].safe_node_manager.all_nodes_dict.nearest_neighbors(
                         selected_location.tolist(), 25)
                     for node in nearby_nodes:
                         coords = node.data.coords

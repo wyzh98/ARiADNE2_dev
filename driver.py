@@ -1,3 +1,5 @@
+import copy
+
 import torch
 import torch.optim as optim
 import torch.nn as nn
@@ -54,7 +56,7 @@ def main():
         vars(parameter).__delitem__('__builtins__')
         wandb.init(project='MAExploration', name=FOLDER_NAME, entity='ezo', config=vars(parameter), resume='allow',
                    id=None, notes=None)
-        wandb.watch([global_policy_net, global_q_net1], log='all', log_freq=1000, log_graph=False)
+        # wandb.watch([global_policy_net, global_q_net1], log='all', log_freq=1000, log_graph=False)
 
     # load model and optimizer trained before
     if LOAD_MODEL:

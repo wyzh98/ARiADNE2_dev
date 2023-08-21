@@ -43,7 +43,7 @@ class SafeNodeManager:
         node = LocalNode(coords, local_frontiers, extended_local_map_info)
         self.safe_nodes_dict.insert(point=key, data=node)
 
-    def update_local_graph(self, robot_location, local_frontiers, local_map_info, extended_local_map_info):
+    def update_local_safe_graph(self, robot_location, local_frontiers, local_map_info, extended_local_map_info):
         extended_local_node_coords, _ = get_local_node_coords(robot_location, extended_local_map_info)
         for coords in extended_local_node_coords:
             node = self.check_node_exist_in_safe(coords)
@@ -63,12 +63,9 @@ class SafeNodeManager:
             else:
                 pass
 
-        for coords in local_node_coords:
-            node = self.safe_nodes_dict.find((coords[0], coords[1])).data
-
-            plot_x = self.x if self.plot else None
-            plot_y = self.y if self.plot else None
-            node.update_neighbor_nodes(extended_local_map_info, self.safe_nodes_dict, plot_x, plot_y)
+        # for coords in local_node_coords:
+        #     node = self.safe_nodes_dict.find((coords[0], coords[1])).data
+        #     node.update_neighbor_nodes(extended_local_map_info, self.safe_nodes_dict, plot_x, plot_y)
 
     def update_local_explore_graph(self, robot_location, local_frontiers, local_map_info, extended_local_map_info):
         extended_local_node_coords, _ = get_local_node_coords(robot_location, extended_local_map_info)
@@ -91,8 +88,10 @@ class SafeNodeManager:
                 pass
 
         for coords in local_node_coords:
+            plot_x = self.x if self.plot else None
+            plot_y = self.y if self.plot else None
             node = self.all_nodes_dict.find((coords[0], coords[1])).data
-            node.update_neighbor_nodes(extended_local_map_info, self.all_nodes_dict)
+            node.update_neighbor_nodes(extended_local_map_info, self.all_nodes_dict, plot_x, plot_y)
 
     def get_all_node_graph(self, robot_location, robot_locations):
         all_node_coords = []

@@ -261,9 +261,10 @@ class LocalNode:
                     neighbor_node = nodes_dict.find((neighbor_coords[0], neighbor_coords[1]))
                     if neighbor_node is None:
                         cell = get_cell_position_from_coords(neighbor_coords, extended_local_map_info)
-                        if extended_local_map_info.map[cell[1], cell[0]] == 1:
-                            self.neighbor_matrix[i, j] = 1
-                        continue
+                        if cell[0] < extended_local_map_info.map.shape[1] and cell[1] < extended_local_map_info.map.shape[0]:
+                            if extended_local_map_info.map[cell[1], cell[0]] == 1:
+                                self.neighbor_matrix[i, j] = 1
+                            continue
                     else:
                         neighbor_node = neighbor_node.data
                         collision = check_collision(self.coords, neighbor_coords, extended_local_map_info)

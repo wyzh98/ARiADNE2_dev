@@ -47,7 +47,7 @@ class Env:
 
 
     def import_ground_truth(self, episode_index):
-        map_dir = 'maps_simple'
+        map_dir = 'maps_medium'
         map_list = os.listdir(map_dir)
         map_index = episode_index % np.size(map_list)
 
@@ -60,13 +60,7 @@ class Env:
 
         ground_truth = block_reduce(ground_truth, 2, np.min)
         robot_cell = np.array(np.nonzero(ground_truth == 208))
-
-        if map_dir == 'maps_simple':
-            robot_cell = np.array([robot_cell[1, 10], robot_cell[0, 10]])
-        elif map_dir == 'maps_medium':
-            robot_cell = np.array([robot_cell[1, 64], robot_cell[0, 64]])
-        else:
-            raise NotImplementedError
+        robot_cell = np.array([robot_cell[1, 10], robot_cell[0, 10]])
 
         ground_truth = (ground_truth > 150) | ((ground_truth <= 80) & (ground_truth >= 50))
         ground_truth = ground_truth * 254 + 1

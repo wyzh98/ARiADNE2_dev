@@ -28,13 +28,18 @@ class Env:
         self.safe_rate = 0
         self.done = False
 
-        self.free_locations, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
-        start_loc_idx = np.argsort(np.linalg.norm(self.free_locations, axis=1))[:N_AGENTS]
-        start_loc = self.free_locations[start_loc_idx]
-        self.robot_locations = np.array(start_loc)
-
         self.safe_zone = np.zeros_like(self.ground_truth)
         self.safe_info = Map_info(self.safe_zone, self.belief_origin_x, self.belief_origin_y, self.cell_size)
+        self.update_safe_zone(initial_cell)
+        safe, _ = get_local_node_coords(np.array([0.0, 0.0]), self.safe_info)
+        choice = np.random.choice(safe.shape[0], N_AGENTS, replace=False)
+
+        self.free_locations, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
+        # start_loc_idx = np.argsort(np.linalg.norm(self.free_locations, axis=1))[:N_AGENTS]
+        # start_loc = self.free_locations[start_loc_idx]
+        start_loc = safe[choice]
+        self.robot_locations = np.array(start_loc)
+
         robot_cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
         for robot_cell in robot_cells:
             self.update_safe_zone(robot_cell)

@@ -76,6 +76,7 @@ def get_local_node_coords(location, local_map_info):
 
 
 def get_frontier_in_map(map_info):
+    map_info = copy.deepcopy(map_info)
     x_len = map_info.map.shape[1]
     y_len = map_info.map.shape[0]
     unknown = (map_info.map == 127) * 1
@@ -95,7 +96,12 @@ def get_frontier_in_map(map_info):
     cells = np.vstack([t1.T.ravel(), t2.T.ravel()]).T
     frontier_cell = cells[frontier_cell_indices]
 
-    frontier_coords = get_coords_from_cell_position(frontier_cell, map_info)
+    if frontier_cell.shape[0] > 0:
+        frontier_coords = get_coords_from_cell_position(frontier_cell, map_info)
+        frontier_coords = frontier_coords.reshape(-1, 2)
+        frontier_coords = frontier_down_sample(frontier_coords)
+    else:
+        frontier_coords = frontier_cell
     return frontier_coords
 
 def get_safe_zone_frontier(safe_info, map_info):

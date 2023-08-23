@@ -99,7 +99,7 @@ class Multi_agent_worker:
             team_reward = self.env.calculate_reward() - 0.3
 
             if done:
-                team_reward += 10
+                team_reward += 30
 
             for robot, reward in zip(self.robot_list, reward_list):
                 robot.save_reward(reward + team_reward)
@@ -137,9 +137,8 @@ class Multi_agent_worker:
         plt.imshow(self.env.robot_belief, cmap='gray', vmin=-255)
         plt.axis('off')
         color_list = ['r', 'b', 'g', 'y']
-        frontiers = get_frontier_in_map(self.env.belief_info)
+        frontiers = get_safe_zone_frontier(self.env.safe_info, self.env.belief_info)
         frontiers = get_cell_position_from_coords(frontiers, self.env.belief_info).reshape(-1, 2)
-        plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r', s=1)
         for robot in self.robot_list:
             c = color_list[robot.id]
             robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
@@ -153,15 +152,18 @@ class Multi_agent_worker:
 
         plt.subplot(1, 2, 1)
         plt.imshow(self.env.robot_belief, cmap='gray')
+        plt.scatter(frontiers[:, 0], frontiers[:, 1], c='g', s=1, zorder=6)
         for robot in self.robot_list:
             c = color_list[robot.id]
             if robot.id == 0:
                 nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
-                # frontiers = get_cell_position_from_coords(robot.safe_frontier, robot.safe_zone_info)
                 plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=0.5)
                 plt.axis('off')
                 plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.utility, zorder=2)
-                # plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r', s=3)
+                guidepost = robot.local_node_coords[np.where(robot.guidepost == 1)[0]]
+                guidepost_cell = get_cell_position_from_coords(guidepost, robot.global_map_info).reshape(-1, 2)
+                plt.scatter(guidepost_cell[:, 0], guidepost_cell[:, 1], c=color_list[0], marker='*', s=10, zorder=7)
+
             robot_cell = get_cell_position_from_coords(robot.location, robot.safe_zone_info)
             plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=16, zorder=5)
 
@@ -179,5 +181,5 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
     worker.run_episode()

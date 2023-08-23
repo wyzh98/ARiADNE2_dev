@@ -171,11 +171,13 @@ class Ground_truth_planner:
                     if 0 < dist < nearest_dist:
                         nearest_dist = dist
                         nearest_utility_coords = coords
+                    if nearest_dist == 1e8 and dist != 0:
+                        print(dist, robot_location, coords)
                         # print(nearest_dist, coords, nearest_utility_coords, robot_location)
 
                 path_coords, dist = self.ground_truth_node_manager.a_star(robot_location, nearest_utility_coords)
                 if len(path_coords) == 0:
-                    print("nearest", nearest_utility_coords, robot_location, node_coords.shape)
+                    print("nearest", nearest_utility_coords, robot_location, node_coords.shape, nearest_dist)
 
             paths_coords.append(path_coords)
         return paths_coords, dist

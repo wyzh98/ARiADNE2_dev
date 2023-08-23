@@ -75,9 +75,9 @@ class Multi_agent_worker:
             reward_list = []
             for selected_location, expert_location in zip(selected_locations, expert_locations):
                 if expert_location is not None:
-                    #reward = np.linalg.norm(selected_location - expert_location) / (4 * NODE_RESOLUTION * 1.41)
-                    #reward = np.round((-np.exp(reward) + np.exp(0)) / (np.exp(1) - np.exp(0)), 2)
-                    reward = -np.round(np.linalg.norm(selected_location - expert_location) / (4 * NODE_RESOLUTION * 1.41), 3)
+                    reward = np.linalg.norm(selected_location - expert_location) / (4 * NODE_RESOLUTION * 1.41)
+                    reward = np.round((-np.exp(reward) + np.exp(0)) / (np.exp(1) - np.exp(0)), 3)
+                    #reward = -np.round(np.linalg.norm(selected_location - expert_location) / (4 * NODE_RESOLUTION * 1.41), 3)
                     reward_list.append(reward)
             # print(reward_list)
 

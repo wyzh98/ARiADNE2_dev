@@ -1,9 +1,9 @@
-FOLDER_NAME = 'ariadne1_multi_agent_il_complex'
+FOLDER_NAME = 'ariadne1_multi_agent_il_complex_exp'
 model_path = f'model/{FOLDER_NAME}'
 train_path = f'train/{FOLDER_NAME}'
 gifs_path = f'gifs/{FOLDER_NAME}'
 SUMMARY_WINDOW = 32
-LOAD_MODEL = True # do you want to load the model trained before
+LOAD_MODEL = False # do you want to load the model trained before
 SAVE_IMG_GAP = 100
 
 N_AGENTS = 4

@@ -160,9 +160,9 @@ class Multi_agent_worker:
                 plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=0.5)
                 plt.axis('off')
                 plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.utility, zorder=2)
-                guidepost = robot.local_node_coords[np.where(robot.guidepost == 1)[0]]
-                guidepost_cell = get_cell_position_from_coords(guidepost, robot.global_map_info).reshape(-1, 2)
-                plt.scatter(guidepost_cell[:, 0], guidepost_cell[:, 1], c=color_list[0], marker='*', s=10, zorder=7)
+            guidepost = robot.local_node_coords[np.where(robot.guidepost == 1)[0]]
+            guidepost_cell = get_cell_position_from_coords(guidepost, robot.global_map_info).reshape(-1, 2)
+            plt.scatter(guidepost_cell[:, 0], guidepost_cell[:, 1], c=c, marker='*', s=10, zorder=7)
 
             robot_cell = get_cell_position_from_coords(robot.location, robot.safe_zone_info)
             plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=16, zorder=5)

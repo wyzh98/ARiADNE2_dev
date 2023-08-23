@@ -99,7 +99,7 @@ class SafeNodeManager:
             all_node_coords.append(node.data.coords)
         all_node_coords = np.array(all_node_coords).reshape(-1, 2)
         utility = []
-        # guidepost = []
+        signal = []
 
         n_nodes = all_node_coords.shape[0]
         adjacent_matrix = np.ones((n_nodes, n_nodes)).astype(int)
@@ -109,10 +109,10 @@ class SafeNodeManager:
             safe = self.safe_nodes_dict.find((coords[0], coords[1]))
             if safe:
                 utility.append(safe.data.utility)
-                # guidepost.append(safe.data.visited)
+                signal.append(safe.data.visited)
             else:
                 utility.append(0)
-                # guidepost.append(0)
+                signal.append(0)
             for neighbor in node.neighbor_list:
                 index = np.argwhere(local_node_coords_to_check == neighbor[0] + neighbor[1] * 1j)
                 if index or index == [[0]]:
@@ -120,7 +120,7 @@ class SafeNodeManager:
                     adjacent_matrix[i, index] = 0
 
         utility = np.array(utility)
-        # guidepost = np.array(guidepost)
+        signal = np.array(signal)
 
         indices = np.argwhere(utility > 0).reshape(-1)
         utility_node_coords = all_node_coords[indices]
@@ -154,7 +154,7 @@ class SafeNodeManager:
             else:
                 occupancy[index] = 1
         assert sum(occupancy) == N_AGENTS-2, print(robot_locations)
-        return all_node_coords, utility, guidepost, occupancy, adjacent_matrix, current_index, neighbor_indices
+        return all_node_coords, utility, guidepost, signal, occupancy, adjacent_matrix, current_index, neighbor_indices
 
     def h(self, coords_1, coords_2):
         # h = abs(coords_1[0] - coords_2[0]) + abs(coords_1[1] - coords_2[1])

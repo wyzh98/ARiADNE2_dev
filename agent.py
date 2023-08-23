@@ -42,7 +42,7 @@ class Agent:
         self.safe_node_manager = safe_node_manager
 
         # local graph
-        self.local_node_coords, self.utility, self.guidepost, self.occupancy = None, None, None, None
+        self.local_node_coords, self.utility, self.guidepost, self.signal, self.occupancy = None, None, None, None, None
         self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices = None, None, None
 
         self.travel_dist = 0
@@ -108,7 +108,7 @@ class Agent:
                                                        self.extended_local_safe_zone_info)
 
     def update_planning_state(self, robot_locations):
-        self.local_node_coords, self.utility, self.guidepost, self.occupancy, self.local_adjacent_matrix, self.current_local_index, \
+        self.local_node_coords, self.utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix, self.current_local_index, \
             self.local_neighbor_indices = self.safe_node_manager.get_all_node_graph(self.location, robot_locations)
 
     def get_local_observation(self):
@@ -116,6 +116,7 @@ class Agent:
         local_node_utility = self.utility.reshape(-1, 1)
         local_node_guidepost = self.guidepost.reshape(-1, 1)
         local_node_occupancy = self.occupancy.reshape(-1, 1)
+        local_node_signal = self.signal.reshape(-1, 1)
         current_local_index = self.current_local_index
         local_edge_mask = self.local_adjacent_matrix
         current_local_edge = self.local_neighbor_indices
@@ -126,7 +127,8 @@ class Agent:
                                             local_node_coords[:, 1].reshape(-1, 1) - current_local_node_coords[1]),
                                            axis=-1) / LOCAL_MAP_SIZE
         local_node_utility = local_node_utility / 30
-        local_node_inputs = np.concatenate((local_node_coords, local_node_utility, local_node_guidepost, local_node_occupancy), axis=1)
+        local_node_inputs = np.concatenate((local_node_coords, local_node_utility, local_node_guidepost,
+                                            local_node_signal, local_node_occupancy), axis=1)
         local_node_inputs = torch.FloatTensor(local_node_inputs).unsqueeze(0).to(self.device)
 
         assert local_node_coords.shape[0] < LOCAL_NODE_PADDING_SIZE, print(local_node_coords.shape[0])

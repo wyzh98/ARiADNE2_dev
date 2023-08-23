@@ -27,11 +27,11 @@ BATCH_SIZE = 256
 LR = 1e-5
 GAMMA = 1
 
-LOCAL_NODE_INPUT_DIM = 5
+LOCAL_NODE_INPUT_DIM = 6
 EMBEDDING_DIM = 128
 
 LOCAL_K_SIZE = 25  # the number of neighboring nodes
-LOCAL_NODE_PADDING_SIZE = 400  # the number of nodes will be padded to this value
+LOCAL_NODE_PADDING_SIZE = 360  # the number of nodes will be padded to this value
 
 USE_GPU = False  # do you want to collect training data using GPUs
 USE_GPU_GLOBAL = True  # do you want to train the network using GPUs

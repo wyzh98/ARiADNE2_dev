@@ -6,7 +6,7 @@ from skimage.measure import block_reduce
 from copy import deepcopy
 import numpy as np
 
-from sensor import exploration_sensor, coverage_sensor
+from sensor import exploration_sensor, coverage_sensor, decrease_safety_by_frontier
 from parameter import *
 from utils import *
 
@@ -24,6 +24,7 @@ class Env:
         self.belief_info = Map_info(self.robot_belief, self.belief_origin_x, self.belief_origin_y, self.cell_size)
 
         self.sensor_range = SENSOR_RANGE  # meter
+        self.safety_range = SENSOR_RANGE  # meter
         self.explored_rate = 0
         self.safe_rate = 0
         self.done = False
@@ -79,6 +80,23 @@ class Env:
     def update_safe_zone(self, robot_cell):
         self.safe_zone = coverage_sensor(robot_cell, round(self.sensor_range / self.cell_size), self.safe_zone,
                                          self.ground_truth)
+
+    def decrease_safety(self, cells_togo):
+        cells_frontiers = get_cell_position_from_coords(self.safe_zone_frontiers, self.safe_info)
+        for frontier in cells_frontiers:
+            nearby_agent_indices = np.argwhere(np.linalg.norm(frontier - cells_togo, axis=1) < round(self.sensor_range / self.cell_size) + 1)
+            nearby_agent_cells = cells_togo[nearby_agent_indices]
+            uncovered = True
+
+            for cell in nearby_agent_cells:
+                if not check_collision(frontier, cell, self.ground_truth):
+                    uncovered = False
+            if uncovered:
+                sub_safe_zone = self.safe_zone[frontier[1] - self.safety_range: frontier[1] + self.safety_range + 1,
+                                               frontier[0] - self.safety_range: frontier[0] + self.safety_range + 1]
+                sub_belief = self.robot_belief[frontier[1] - self.safety_range: frontier[1] + self.safety_range + 1,
+                                               frontier[0] - self.safety_range: frontier[0] + self.safety_range + 1]
+                decrease_safety_by_frontier(self.safety_range, sub_safe_zone, sub_belief)
 
     def calculate_reward(self):
         reward = 0

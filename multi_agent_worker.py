@@ -8,7 +8,7 @@ from agent import Agent
 from parameter import *
 from utils import *
 from model import PolicyNet
-from local_node_manager_quadtree import SafeNodeManager
+from local_node_manager_quadtree import NodeManager
 
 if not os.path.exists(gifs_path):
     os.makedirs(gifs_path)
@@ -23,9 +23,9 @@ class Multi_agent_worker:
 
         self.env = Env(global_step, plot=self.save_image)
         self.n_agent = N_AGENTS
-        self.safe_node_manager = SafeNodeManager(self.env.free_locations, plot=self.save_image)
+        self.node_manager = NodeManager(self.env.free_locations, plot=self.save_image)
 
-        self.robot_list = [Agent(i, policy_net, self.safe_node_manager, self.device, self.save_image) for i in
+        self.robot_list = [Agent(i, policy_net, self.node_manager, self.device, self.save_image) for i in
                            range(N_AGENTS)]
 
         self.episode_buffer = []
@@ -36,8 +36,7 @@ class Multi_agent_worker:
     def run_episode(self):
         done = False
         for robot in self.robot_list:
-            robot.update_explore_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
-            robot.update_safe_graph(self.env.safe_info, deepcopy(self.env.robot_locations[robot.id]))
+            robot.update_graph(self.env.belief_info, self.env.safe_info, deepcopy(self.env.robot_locations[robot.id]))
         for robot in self.robot_list:    
             robot.update_planning_state(self.env.robot_locations)
 
@@ -52,11 +51,11 @@ class Multi_agent_worker:
                 next_location, next_node_index, action_index = robot.select_next_waypoint(local_observation)
                 robot.save_action(action_index)
 
-                node = robot.safe_node_manager.all_nodes_dict.find((robot.location[0], robot.location[1]))
-                check = np.array(node.data.neighbor_list)
+                node = robot.node_manager.local_nodes_dict.find((robot.location[0], robot.location[1]))
+                check = np.array(node.data.explored_neighbor_list)
                 assert next_location[0] + next_location[1] * 1j in check[:, 0] + check[:, 1] * 1j, print(next_location,
                                                                                                          robot.location,
-                                                                                                         node.data.neighbor_list)
+                                                                                                         node.data.explored_neighbor_list)
                 assert next_location[0] != robot.location[0] or next_location[1] != robot.location[1]
 
                 selected_locations.append(next_location)
@@ -71,7 +70,7 @@ class Multi_agent_worker:
                 solved_locations = selected_locations_in_arriving_sequence[:j]
                 while selected_location[0] + selected_location[1] * 1j in solved_locations[:, 0] + solved_locations[:, 1] * 1j:
                     id = arriving_sequence[j]
-                    nearby_nodes = self.robot_list[id].safe_node_manager.all_nodes_dict.nearest_neighbors(
+                    nearby_nodes = self.robot_list[id].node_manager.local_nodes_dict.nearest_neighbors(
                         selected_location.tolist(), 25)
                     for node in nearby_nodes:
                         coords = node.data.coords
@@ -87,16 +86,15 @@ class Multi_agent_worker:
             for robot, next_location, next_node_index in zip(self.robot_list, selected_locations, next_node_index_list):
                 dist = np.linalg.norm(next_location - robot.location)
                 self.env.step(next_location, robot.id)
-                individual_reward = robot.utility[next_node_index] / 50 - dist / 50
+                individual_reward = robot.utility[next_node_index] / 50
                 reward_list.append(individual_reward)
 
-                robot.update_explore_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
-                robot.update_safe_graph(self.env.safe_info, deepcopy(self.env.robot_locations[robot.id]))
+                robot.update_graph(self.env.belief_info, self.env.safe_info, deepcopy(self.env.robot_locations[robot.id]))
 
             if self.robot_list[0].utility.sum() == 0:
                 done = True
 
-            team_reward = self.env.calculate_reward() - 0.3
+            team_reward = self.env.calculate_reward() - 0.5
 
             if done:
                 team_reward += 30
@@ -146,9 +144,6 @@ class Multi_agent_worker:
             plt.plot((np.array(robot.trajectory_x) - robot.global_map_info.map_origin_x) / robot.cell_size,
                      (np.array(robot.trajectory_y) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
                      linewidth=2, zorder=1)
-            # for i in range(len(self.safe_node_manager.x)):
-            #   plt.plot((self.safe_node_manager.x[i] - self.local_safe_zone_info.map_origin_x) / self.cell_size,
-            #            (self.safe_node_manager.y[i] - self.local_safe_zone_info.map_origin_y) / self.cell_size, 'tan', zorder=1)
 
         plt.subplot(1, 2, 1)
         plt.imshow(self.env.robot_belief, cmap='gray')

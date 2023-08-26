@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 
 from utils import *
 from parameter import *
-from local_node_manager_quadtree import SafeNodeManager
+from local_node_manager_quadtree import NodeManager
 
 
 class Agent:
-    def __init__(self, id, policy_net, safe_node_manager, device='cpu', plot=False):
+    def __init__(self, id, policy_net, node_manager, device='cpu', plot=False):
         self.id = id
         self.device = device
         self.plot = plot
@@ -39,7 +39,7 @@ class Agent:
         self.safe_frontier = None
 
         # local node managers
-        self.safe_node_manager = safe_node_manager
+        self.node_manager = node_manager
 
         # local graph
         self.local_node_coords, self.utility, self.guidepost, self.signal, self.occupancy = None, None, None, None, None
@@ -59,7 +59,6 @@ class Agent:
         self.global_map_info = global_map_info
 
     def update_global_safe_zone(self, global_safe_zone):
-        # no need in training because of shallow copy
         self.safe_zone_info = global_safe_zone
 
     def update_local_safe_zone(self):
@@ -78,7 +77,7 @@ class Agent:
         self.travel_dist += dist
 
         self.location = location
-        node = self.safe_node_manager.safe_nodes_dict.find((location[0], location[1]))
+        node = self.node_manager.local_nodes_dict.find((location[0], location[1]))
         if node:
             node.data.set_visited()
         if self.plot:
@@ -88,28 +87,21 @@ class Agent:
     def update_safe_frontiers(self):
         self.safe_frontier = get_safe_zone_frontier(self.extended_local_safe_zone_info, self.extended_local_map_info)
 
-    def update_explore_graph(self, map_info, location):
-        self.update_location(location)
+    def update_graph(self, map_info, safe_zone_info, location):
         self.update_global_map(map_info)
-        self.update_local_map()
-        self.safe_node_manager.update_local_explore_graph(self.location,
-                                                          np.array([]),
-                                                          self.local_map_info,
-                                                          self.extended_local_map_info)
-
-    def update_safe_graph(self, safe_zone_info, location):
-        # self.update_location(location)
         self.update_global_safe_zone(safe_zone_info)
+        self.update_location(location)
+        self.update_local_map()
         self.update_local_safe_zone()
         self.update_safe_frontiers()
-        self.safe_node_manager.update_local_safe_graph(self.location,
-                                                       self.safe_frontier,
-                                                       self.local_safe_zone_info,
-                                                       self.extended_local_safe_zone_info)
+        self.node_manager.update_local_explore_graph(self.location, np.array([]), self.local_map_info,
+                                                     self.extended_local_map_info)
+        self.node_manager.update_local_safe_graph(self.location, self.safe_frontier, self.local_safe_zone_info,
+                                                  self.extended_local_safe_zone_info, self.extended_local_map_info)
 
     def update_planning_state(self, robot_locations):
         self.local_node_coords, self.utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix, self.current_local_index, \
-            self.local_neighbor_indices = self.safe_node_manager.get_all_node_graph(self.location, robot_locations)
+            self.local_neighbor_indices = self.node_manager.get_all_node_graph(self.location, robot_locations)
 
     def get_local_observation(self):
         local_node_coords = self.local_node_coords

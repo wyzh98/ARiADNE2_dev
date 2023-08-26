@@ -42,6 +42,41 @@ def collision_check(x0, y0, x1, y1, ground_truth, robot_belief):
     return robot_belief
 
 
+def safety_check(x0, y0, x1, y1, sub_safe_zone, sub_belief):
+    x0 = x0.round()
+    y0 = y0.round()
+    x1 = x1.round()
+    y1 = y1.round()
+    dx, dy = abs(x1 - x0), abs(y1 - y0)
+    x, y = x0, y0
+    error = dx - dy
+    x_inc = 1 if x1 > x0 else -1
+    y_inc = 1 if y1 > y0 else -1
+    dx *= 2
+    dy *= 2
+
+    while 0 <= x < sub_safe_zone.shape[1] and 0 <= y < sub_safe_zone.shape[0]:
+        k1 = sub_safe_zone.item(y, x)
+        k2 = sub_belief.item(y, x)
+
+        if k2 == 1:
+            break
+
+        if x == x1 and y == y1:
+            break
+
+        sub_safe_zone.itemset((y, x), 0)
+
+        if error > 0:
+            x += x_inc
+            error -= dy
+        else:
+            y += y_inc
+            error += dx
+
+    return sub_safe_zone
+
+
 def update_coverage(x0, y0, x1, y1, ground_truth, safe_zone):
     x0 = x0.round()
     y0 = y0.round()
@@ -107,3 +142,16 @@ def coverage_sensor(robot_position, sensor_range, robot_belief, ground_truth):
         robot_belief = update_coverage(x0, y0, x1, y1, ground_truth, robot_belief)
         sensor_angle += sensor_angle_inc
     return robot_belief
+
+
+def decrease_safety_by_frontier(safety_range, sub_safe_zone, sub_belief):
+    angle_inc = 0.5 / 180 * np.pi
+    angle = 0
+    x0 = safety_range
+    y0 = safety_range
+    while angle < 2 * np.pi:
+        x1 = x0 + np.cos(angle) * safety_range
+        y1 = y0 + np.sin(angle) * safety_range
+        sub_safe_zone[:, :] = safety_check(x0, y0, x1, y1, sub_safe_zone, sub_belief)
+        angle += angle_inc
+    return sub_safe_zone

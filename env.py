@@ -24,7 +24,7 @@ class Env:
         self.belief_info = Map_info(self.robot_belief, self.belief_origin_x, self.belief_origin_y, self.cell_size)
 
         self.sensor_range = SENSOR_RANGE  # meter
-        self.safety_range = SENSOR_RANGE  # meter
+        self.safety_range = 0  # meter
         self.explored_rate = 0
         self.safe_rate = 0
         self.done = False

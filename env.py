@@ -132,14 +132,11 @@ class Env:
     def evaluate_safe_zone_rate(self):
         self.safe_rate = np.sum(self.safe_zone > 0) / np.sum(self.ground_truth == 255)
 
-    def step(self, next_waypoint, agent_id):
+    def step(self, next_waypoints, agent_id):
+        next_waypoint = next_waypoints[agent_id]
         self.evaluate_safe_zone_rate()
         self.robot_locations[agent_id] = next_waypoint
-        reward = 0
         cell = get_cell_position_from_coords(next_waypoint, self.belief_info)
+        if agent_id == 0:
+            self.decrease_safety(next_waypoints)
         self.update_safe_zone(cell)
-        # reward = self.calculate_reward(dist)
-
-        return reward
-
-

@@ -43,8 +43,6 @@ def collision_check(x0, y0, x1, y1, ground_truth, robot_belief):
 
 
 def safety_check(x0, y0, x1, y1, sub_safe_zone, sub_belief):
-    x0 = x0.round()
-    y0 = y0.round()
     x1 = x1.round()
     y1 = y1.round()
     dx, dy = abs(x1 - x0), abs(y1 - y0)

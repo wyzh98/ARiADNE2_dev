@@ -86,7 +86,7 @@ class Multi_agent_worker:
             for robot, next_location, next_node_index in zip(self.robot_list, selected_locations, next_node_index_list):
                 dist = np.linalg.norm(next_location - robot.location)
                 self.env.step(selected_locations, robot.id)
-                individual_reward = robot.utility[next_node_index] / 50
+                individual_reward = 0
                 reward_list.append(individual_reward)
 
                 robot.update_graph(self.env.belief_info, self.env.safe_info, deepcopy(self.env.robot_locations[robot.id]))

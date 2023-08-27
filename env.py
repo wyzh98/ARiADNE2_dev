@@ -102,20 +102,9 @@ class Env:
         reward = 0
 
         safe_zone_frontiers = get_safe_zone_frontier(self.safe_info, self.belief_info)
-        if safe_zone_frontiers.shape[0] == 0:
-            delta_num = self.safe_zone_frontiers.shape[0]
-        else:
-            safe_zone_frontiers = safe_zone_frontiers.reshape(-1, 2)
-            frontiers_to_check = safe_zone_frontiers[:, 0] + safe_zone_frontiers[:, 1] * 1j
-            pre_frontiers_to_check = self.safe_zone_frontiers[:, 0] + self.safe_zone_frontiers[:, 1] * 1j
-            frontiers_num = np.intersect1d(frontiers_to_check, pre_frontiers_to_check).shape[0]
-            pre_frontiers_num = pre_frontiers_to_check.shape[0]
-            delta_num = pre_frontiers_num - frontiers_num
-
-        reward += delta_num / 200
 
         new_area = np.sum(self.safe_zone == 255) - np.sum(self.old_safe_zone == 255)
-        # reward += np.clip(new_area / 1000, 0.1, 0.5)
+        reward += new_area / 1000
 
         self.safe_zone_frontiers = safe_zone_frontiers
         self.old_safe_zone = deepcopy(self.safe_zone)

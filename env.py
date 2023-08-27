@@ -89,7 +89,7 @@ class Env:
             uncovered = True
 
             for cell in nearby_agent_cells:
-                if not check_collision(frontier, cell, self.ground_truth):
+                if not check_collision(frontier, cell, self.belief_info):
                     uncovered = False
             if uncovered:
                 sub_safe_zone = self.safe_zone[frontier[1] - self.safety_range: frontier[1] + self.safety_range + 1,

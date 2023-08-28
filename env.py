@@ -101,12 +101,9 @@ class Env:
     def calculate_reward(self):
         reward = 0
 
-        safe_zone_frontiers = get_safe_zone_frontier(self.safe_info, self.belief_info)
-
         new_area = np.sum(self.safe_zone == 255) - np.sum(self.old_safe_zone == 255)
         reward += new_area / 1000
 
-        self.safe_zone_frontiers = safe_zone_frontiers
         self.old_safe_zone = deepcopy(self.safe_zone)
 
         return reward
@@ -121,11 +118,9 @@ class Env:
     def evaluate_safe_zone_rate(self):
         self.safe_rate = np.sum(self.safe_zone > 0) / np.sum(self.ground_truth == 255)
 
-    def step(self, next_waypoints, agent_id):
-        next_waypoint = next_waypoints[agent_id]
-        self.evaluate_safe_zone_rate()
+    def step(self, next_waypoint, agent_id):
+        next_cell = get_cell_position_from_coords(next_waypoint, self.belief_info)
         self.robot_locations[agent_id] = next_waypoint
-        cell = get_cell_position_from_coords(next_waypoint, self.belief_info)
-        if agent_id == 0:
-            self.decrease_safety(next_waypoints)
-        self.update_safe_zone(cell)
+        self.update_safe_zone(next_cell)
+        self.safe_zone_frontiers = get_safe_zone_frontier(self.safe_info, self.belief_info)
+        self.evaluate_safe_zone_rate()

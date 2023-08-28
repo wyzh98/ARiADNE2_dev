@@ -56,7 +56,6 @@ class Multi_agent_worker:
                 assert next_location[0] + next_location[1] * 1j in check[:, 0] + check[:, 1] * 1j, print(next_location,
                                                                                                          robot.location,
                                                                                                          node.data.explored_neighbor_list)
-                assert next_location[0] != robot.location[0] or next_location[1] != robot.location[1]
 
                 selected_locations.append(next_location)
                 dist_list.append(np.linalg.norm(next_location - robot.location))

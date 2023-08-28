@@ -63,14 +63,12 @@ class NodeManager:
             node = self.check_node_exist_in_dict(coords)
             if node is not None:
                 node = node.data
-                if node.safe and (coords not in extended_safe_node_coords):
-                    node.set_unsafe()
-                elif coords in extended_safe_node_coords:
+                if np.any(np.all(coords == extended_safe_node_coords, axis=1)):
                     node.set_safe()
                     if (node.safe_utility != 0) and (np.linalg.norm(node.coords - robot_location) <= 2 * SENSOR_RANGE):
                         node.update_observable_safe_frontiers(safe_frontiers, extended_safe_zone_info)
                 else:
-                    pass
+                    node.set_unsafe()
 
         local_node_coords, _ = get_local_node_coords(robot_location, local_safe_zone_info)
 

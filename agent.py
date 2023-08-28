@@ -148,7 +148,7 @@ class Agent:
         current_local_edge = current_local_edge.unsqueeze(-1)
 
         local_edge_padding_mask = torch.zeros((1, 1, k_size), dtype=torch.int16).to(self.device)
-        local_edge_padding_mask[0, 0, current_in_edge] = 1
+        # local_edge_padding_mask[0, 0, current_in_edge] = 1
         padding = torch.nn.ConstantPad1d((0, LOCAL_K_SIZE - k_size), 1)
         local_edge_padding_mask = padding(local_edge_padding_mask)
 

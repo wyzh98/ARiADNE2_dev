@@ -85,7 +85,7 @@ class Multi_agent_worker:
             reward_list = [0] * self.n_agent
             # for robot in self.robot_list:
             #     num_dangerous_frontiers = robot.get_num_dangerous_frontiers(selected_locations)
-            #     reward_list[robot.id] += -num_dangerous_frontiers / 50
+            #     reward_list[robot.id] += -num_dangerous_frontiers / 100
             # old_safe_frontier = copy.deepcopy(self.env.safe_zone_frontiers)
 
             for robot, next_location in zip(self.robot_list, selected_locations):
@@ -106,7 +106,7 @@ class Multi_agent_worker:
             if self.robot_list[0].utility.sum() == 0:
                 done = True
 
-            team_reward = self.env.calculate_reward() - 0.5
+            team_reward = self.env.calculate_reward() - 0.3
 
             if done:
                 team_reward += 30
@@ -188,5 +188,5 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
     worker.run_episode()

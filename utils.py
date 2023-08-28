@@ -167,6 +167,21 @@ def frontier_down_sample(data, voxel_size=FRONTIER_CELL_SIZE):
     return downsampled_data
 
 
+def distance_based_clustering(locations, max_distance):
+    cluster_indices = []
+    for i, location in enumerate(locations):
+        assigned = False
+        for cluster_index in cluster_indices:
+            cluster_loc = locations[cluster_index[0]]
+            if np.linalg.norm(location - cluster_loc) <= max_distance:
+                cluster_index.append(i)
+                assigned = True
+                break
+        if not assigned:
+            cluster_indices.append([i])
+    return cluster_indices
+
+
 def get_partial_map_from_center(original_map_info, center_coords, partial_map_size):
     partial_map_origin_x = (center_coords[
                               0] - partial_map_size / 2) // NODE_RESOLUTION * NODE_RESOLUTION

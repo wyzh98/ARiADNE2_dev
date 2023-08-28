@@ -95,7 +95,7 @@ class NodeManager:
         for i, coords in enumerate(all_node_coords):
             node = self.local_nodes_dict.find((coords[0], coords[1])).data
             utility.append(node.safe_utility)
-            signal.append(node.safe)
+            signal.append(node.visited)
             for neighbor in node.explored_neighbor_list:
                 index = np.argwhere(local_node_coords_to_check == neighbor[0] + neighbor[1] * 1j)
                 if index or index == [[0]]:

@@ -91,15 +91,20 @@ class Multi_agent_worker:
 
                 robot.update_graph(self.env.belief_info, self.env.safe_info, deepcopy(self.env.robot_locations[robot.id]))
 
-            if self.robot_list[0].utility.sum() == 0:
-                done = True
+            cluster_indices = distance_based_clustering(selected_locations, 10)
+            grouped_reward_list = np.zeros_like(reward_list)
+            for cluster_index in cluster_indices:
+                average_reward = np.take(reward_list, cluster_index).mean()
+                grouped_reward_list[cluster_index] = average_reward
+
+            done = self.env.check_done()
 
             team_reward = self.env.calculate_reward() - 0.5
 
             if done:
                 team_reward += 30
 
-            for robot, reward in zip(self.robot_list, reward_list):
+            for robot, reward in zip(self.robot_list, grouped_reward_list):
                 robot.save_reward(reward + team_reward)
                 robot.update_planning_state(self.env.robot_locations)
                 robot.save_done(done)

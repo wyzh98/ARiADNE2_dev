@@ -27,7 +27,6 @@ class Env:
         self.safety_range = 0  # meter
         self.explored_rate = 0
         self.safe_rate = 0
-        self.done = False
 
         self.safe_zone = np.zeros_like(self.ground_truth)
         self.safe_info = Map_info(self.safe_zone, self.belief_origin_x, self.belief_origin_y, self.cell_size)
@@ -123,8 +122,8 @@ class Env:
         return reward
 
     def check_done(self):
-        if np.sum(self.ground_truth == 255) - np.sum(self.safe_zone == 255) <= 250:
-            self.done = True
+        done = True if self.safe_rate > 0.999 else False
+        return done
 
     def evaluate_exploration_rate(self):
         self.explored_rate = np.sum(self.robot_belief == 255) / np.sum(self.ground_truth == 255)
@@ -137,6 +136,6 @@ class Env:
         self.evaluate_safe_zone_rate()
         self.robot_locations[agent_id] = next_waypoint
         cell = get_cell_position_from_coords(next_waypoint, self.belief_info)
-        if agent_id == 0:
-            self.decrease_safety(next_waypoints)
+        # if agent_id == 0:
+        #     self.decrease_safety(next_waypoints)
         self.update_safe_zone(cell)

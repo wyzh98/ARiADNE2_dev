@@ -42,7 +42,7 @@ class Env:
         starts = free[choice]
         self.robot_locations = np.array(starts)
 
-        robot_cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
+        robot_cells = get_cell_position_from_coords(self.robot_locations, self.belief_info).reshape(-1, 2)
         for robot_cell in robot_cells:
             self.robot_belief = sensor_work(robot_cell, self.sensor_range / self.cell_size, self.robot_belief,
                                             self.ground_truth)

@@ -1,4 +1,4 @@
-FOLDER_NAME = 'ariadne1_multi_agent_il_complex_exp'
+FOLDER_NAME = 'ariadne1_4_agent_tare_expert'
 model_path = f'model/{FOLDER_NAME}'
 train_path = f'train/{FOLDER_NAME}'
 gifs_path = f'gifs/{FOLDER_NAME}'
@@ -29,6 +29,8 @@ GAMMA = 0.95
 
 LOCAL_NODE_INPUT_DIM = 5
 EMBEDDING_DIM = 128
+
+EXPERT = 'ground_truth'  # 'tare' or 'ground_truth'
 
 LOCAL_K_SIZE = 25  # the number of neighboring nodes
 LOCAL_NODE_PADDING_SIZE = 360  # the number of nodes will be padded to this value

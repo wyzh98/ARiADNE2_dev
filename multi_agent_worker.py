@@ -41,7 +41,11 @@ class Multi_agent_worker:
         for robot in self.robot_list:    
             robot.update_planning_state(self.env.robot_locations)
 
-        paths = self.env.get_ground_truth_paths()
+        if EXPERT == 'tare':
+            self.env.expert_planner = Expert_planner(self.local_node_manager)
+            paths = self.env.get_expert_paths()
+        if EXPERT == 'ground_truth':
+            paths = self.env.get_ground_truth_paths()
         expert_locations = []
         for path in paths:
             expert_locations.append(np.array(path[0]))
@@ -67,10 +71,10 @@ class Multi_agent_worker:
                 dist_list.append(np.linalg.norm(next_location - robot.location))
                 next_node_index_list.append(next_node_index)
 
-            #selected_locations = []
-            #for path in paths:
-            #    if path:
-            #        selected_locations.append(np.array(path[0]))
+            selected_locations = []
+            for path in paths:
+               if path:
+                   selected_locations.append(np.array(path[0]))
 
             reward_list = []
             for selected_location, expert_location in zip(selected_locations, expert_locations):
@@ -120,7 +124,11 @@ class Multi_agent_worker:
 
             exception = False
             if not done:
-                paths = self.env.get_ground_truth_paths()
+                if EXPERT == 'tare':
+                    paths = self.env.get_expert_paths()
+                if EXPERT == 'ground_truth':
+                    paths = self.env.get_ground_truth_paths()
+
                 if self.save_image:
                     self.plot_local_env(i, paths)
                 expert_locations = []
@@ -171,12 +179,12 @@ class Multi_agent_worker:
         plt.figure(figsize=(15, 5))
         plt.subplot(1, 3, 3)
         plt.imshow(self.env.ground_truth_info.map, cmap='gray')
-        nodes = get_cell_position_from_coords(self.env.ground_truth_planner.ground_truth_node_manager.ground_truth_node_coords, self.env.ground_truth_info)
+        # nodes = get_cell_position_from_coords(self.env.ground_truth_planner.ground_truth_node_manager.ground_truth_node_coords, self.env.ground_truth_info)
         plt.axis('off')
-        plt.scatter(nodes[:, 0], nodes[:, 1], c=self.env.ground_truth_planner.ground_truth_node_manager.utility, zorder=2)
-        frontiers = get_cell_position_from_coords(self.env.ground_truth_planner.ground_truth_node_manager.ground_truth_frontiers, self.env.belief_info)
-        frontiers = frontiers.reshape(-1, 2)
-        plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r', s=1, zorder=10)
+        # plt.scatter(nodes[:, 0], nodes[:, 1], c=self.env.ground_truth_planner.ground_truth_node_manager.utility, zorder=2)
+        # frontiers = get_cell_position_from_coords(self.env.ground_truth_planner.ground_truth_node_manager.ground_truth_frontiers, self.env.belief_info)
+        # frontiers = frontiers.reshape(-1, 2)
+        # plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r', s=1, zorder=10)
 
         if planned_paths:
             robot = self.robot_list[0]
@@ -186,6 +194,9 @@ class Multi_agent_worker:
                     plt.plot((np.array(path)[:, 0] - robot.global_map_info.map_origin_x) / robot.cell_size,
                             (np.array(path)[:, 1] - robot.global_map_info.map_origin_y) / robot.cell_size, c,
                             linewidth=2, zorder=1)
+                    robot = self.robot_list[i]
+                    robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
+                    plt.plot(robot_cell[0], robot_cell[1], c + 'o', markersize=16, zorder=5)
 
         plt.subplot(1, 3, 2)
         plt.imshow(self.env.robot_belief, cmap='gray')
@@ -229,33 +240,4 @@ class Multi_agent_worker:
         plt.savefig('{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step), dpi=150)
         frame = '{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step)
         self.env.frame_files.append(frame)
-
-    def plot_ground_truth_env(self, step):
-        plt.switch_backend('agg')
-        plt.figure(figsize=(15, 5))
-        plt.subplot(1, 2, 2)
-        plt.imshow(self.env.ground_truth, cmap='gray')
-        plt.axis('off')
-        color_list = ['r', 'b', 'g', 'y']
-        for robot in self.robot_list:
-            c = color_list[robot.id]
-            robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
-            plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=16, zorder=5)
-            plt.plot((np.array(robot.trajectory_x) - robot.global_map_info.map_origin_x) / robot.cell_size,
-                     (np.array(robot.trajectory_y) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
-                     linewidth=2, zorder=1)
-
-        plt.subplot(1, 2, 1)
-        plt.imshow(self.env.expert_planner.ground_truth_node_manager.ground_truth_map_info.map, cmap='gray')
-        for robot in self.robot_list:
-            c = color_list[robot.id]
-            if robot.id == 0:
-                nodes = get_cell_position_from_coords(self.env.expert_planner.ground_truth_node_manager.ground_truth_node_coords, self.env.ground_truth_info)
-                frontiers = get_cell_position_from_coords(self.env.expert_planner.ground_truth_node_manager.ground_truth_frontiers, self.env.ground_truth_info)
-                plt.axis('off')
-                plt.scatter(nodes[:, 0], nodes[:, 1], c=self.env.expert_planner.ground_truth_node_manager.utility, zorder=2)
-                plt.scatter(frontiers[:, 0], frontiers[:, 1], c='r')
-            robot_cell = get_cell_position_from_coords(robot.location, self.env.ground_truth_info)
-            plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=16, zorder=5)
-        # plt.show()
 

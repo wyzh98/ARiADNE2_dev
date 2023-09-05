@@ -57,7 +57,7 @@ class NodeManager:
 
     def update_local_safe_graph(self, robot_location, safe_frontiers, local_safe_zone_info, extended_safe_zone_info, extended_local_map_info):
         extended_explore_node_coords, _ = get_local_node_coords(robot_location, extended_local_map_info)
-        extended_safe_node_coords, _ = get_local_node_coords(robot_location, extended_safe_zone_info)
+        extended_safe_node_coords, _ = get_local_node_coords(robot_location, extended_safe_zone_info, connected=False)
 
         for coords in extended_explore_node_coords:
             node = self.check_node_exist_in_dict(coords)
@@ -70,7 +70,7 @@ class NodeManager:
                 else:
                     node.set_unsafe()
 
-        local_node_coords, _ = get_local_node_coords(robot_location, local_safe_zone_info)
+        local_node_coords, _ = get_local_node_coords(robot_location, local_safe_zone_info, connected=False)
 
         for coords in local_node_coords:
             node = self.check_node_exist_in_dict(coords)

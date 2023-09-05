@@ -43,17 +43,17 @@ def get_free_area_coords(map_info):
     return free_coords
 
 
-def get_free_and_connected_map(location, map_info):
+def get_free_and_connected_map(location, map_info, connected=True):
     # a binary map for free and connected areas
     free = (map_info.map == 255).astype(float)
-    labeled_free = label(free, connectivity=2)
+    labeled_free = label(free, connectivity=2) if connected else free
     cell = get_cell_position_from_coords(location, map_info)
     label_number = labeled_free[cell[1], cell[0]]
     connected_free_map = (labeled_free == label_number)
     return connected_free_map
 
 
-def get_local_node_coords(location, local_map_info):
+def get_local_node_coords(location, local_map_info, connected=True):
     x_min = (local_map_info.map_origin_x // NODE_RESOLUTION + 1) * NODE_RESOLUTION
     y_min = (local_map_info.map_origin_y // NODE_RESOLUTION + 1) * NODE_RESOLUTION
     x_max = ((local_map_info.map_origin_x + local_map_info.map.shape[1] * CELL_SIZE) // NODE_RESOLUTION) * NODE_RESOLUTION
@@ -65,7 +65,7 @@ def get_local_node_coords(location, local_map_info):
     nodes = np.vstack([t1.T.ravel(), t2.T.ravel()]).T
     nodes = np.around(nodes, 1)
 
-    free_connected_map = get_free_and_connected_map(location, local_map_info)
+    free_connected_map = get_free_and_connected_map(location, local_map_info, connected)
 
     nodes_cells = get_cell_position_from_coords(nodes, local_map_info)
     nodes_cells_value = free_connected_map[nodes_cells[:, 1], nodes_cells[:, 0]]
@@ -232,6 +232,9 @@ def check_collision(start, end, map_info):
     while 0 <= x < map.shape[1] and 0 <= y < map.shape[0]:
         k = map.item(int(y), int(x))
         if x == x1 and y == y1:
+            break
+        if k == 0:
+            collision = True
             break
         if k == 1:
             collision = True

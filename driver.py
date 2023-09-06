@@ -6,6 +6,7 @@ import ray
 import os
 import numpy as np
 import random
+import wandb
 
 from model import PolicyNet, QNet
 from runner import RLRunner
@@ -47,6 +48,12 @@ def main():
 
     curr_episode = 0
     target_q_update_counter = 1
+
+    if USE_WANDB:
+        import parameter
+        vars(parameter).__delitem__('__builtins__')
+        wandb.init(project='MAExploration', name=FOLDER_NAME, entity='ezo', config=vars(parameter), resume='allow',
+                   id=None, notes=None)
 
     # load model and optimizer trained before
     if LOAD_MODEL:
@@ -288,6 +295,8 @@ def main():
         print("CTRL_C pressed. Killing remote workers")
         for a in meta_agents:
             ray.kill(a)
+        if USE_WANDB:
+            wandb.finish(quiet=True)
 
 
 def write_to_tensor_board(writer, tensorboard_data, curr_episode):
@@ -298,18 +307,23 @@ def write_to_tensor_board(writer, tensorboard_data, curr_episode):
     tensorboard_data = list(np.nanmean(tensorboard_data, axis=0))
     reward, value, policy_loss, q_value_loss, entropy, policy_grad_norm, q_value_grad_norm, log_alpha, alpha_loss, travel_dist, success_rate, explored_rate = tensorboard_data
 
-    writer.add_scalar(tag='Losses/Value', scalar_value=value, global_step=curr_episode)
-    writer.add_scalar(tag='Losses/Policy Loss', scalar_value=policy_loss, global_step=curr_episode)
-    writer.add_scalar(tag='Losses/Alpha Loss', scalar_value=alpha_loss, global_step=curr_episode)
-    writer.add_scalar(tag='Losses/Q Value Loss', scalar_value=q_value_loss, global_step=curr_episode)
-    writer.add_scalar(tag='Losses/Entropy', scalar_value=entropy, global_step=curr_episode)
-    writer.add_scalar(tag='Losses/Policy Grad Norm', scalar_value=policy_grad_norm, global_step=curr_episode)
-    writer.add_scalar(tag='Losses/Q Value Grad Norm', scalar_value=q_value_grad_norm, global_step=curr_episode)
-    writer.add_scalar(tag='Losses/Log Alpha', scalar_value=log_alpha, global_step=curr_episode)
-    writer.add_scalar(tag='Perf/Reward', scalar_value=reward, global_step=curr_episode)
-    writer.add_scalar(tag='Perf/Travel Distance', scalar_value=travel_dist, global_step=curr_episode)
-    writer.add_scalar(tag='Perf/Explored Rate', scalar_value=explored_rate, global_step=curr_episode)
-    writer.add_scalar(tag='Perf/Success Rate', scalar_value=success_rate, global_step=curr_episode)
+    metrics = {"Losses/Value": value,
+               "Losses/Policy Loss": policy_loss,
+               "Losses/Alpha Loss": alpha_loss,
+               "Losses/Q Value Loss": q_value_loss,
+               "Losses/Entropy": entropy,
+               "Losses/Policy Grad Norm": policy_grad_norm,
+               "Losses/Q Value Grad Norm": q_value_grad_norm,
+               "Losses/Log Alpha": log_alpha,
+               "Perf/Reward": reward,
+               "Perf/Travel Distance": travel_dist,
+               "Perf/Success Rate": success_rate,
+               "Perf/Explored Rate": explored_rate,
+               }
+    for k, v in metrics.items():
+        writer.add_scalar(k, v, curr_episode)
+    if USE_WANDB:
+        wandb.log(metrics, step=curr_episode)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-FOLDER_NAME = 'ariadne1_4_agent_tare_expert'
+FOLDER_NAME = 'ariadne1_gtexpert'
 model_path = f'model/{FOLDER_NAME}'
 train_path = f'train/{FOLDER_NAME}'
 gifs_path = f'gifs/{FOLDER_NAME}'
@@ -39,3 +39,5 @@ USE_GPU = False  # do you want to collect training data using GPUs
 USE_GPU_GLOBAL = True # do you want to train the network using GPUs
 NUM_GPU = 0
 NUM_META_AGENT = 32
+
+USE_WANDB = False

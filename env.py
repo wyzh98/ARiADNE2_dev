@@ -14,9 +14,11 @@ from expert_planner import Expert_planner
 
 
 class Env:
-    def __init__(self, episode_index, plot=False):
+    def __init__(self, episode_index, plot=False, test=False):
         self.episode_index = episode_index
         self.plot = plot
+        self.test = test
+
         self.ground_truth, initial_cell = self.import_ground_truth(episode_index)
         self.ground_truth_size = np.shape(self.ground_truth)  # cell
         self.cell_size = CELL_SIZE  # meter
@@ -36,7 +38,7 @@ class Env:
 
         self.ground_truth_info = Map_info(self.ground_truth, self.belief_origin_x, self.belief_origin_y, self.cell_size)
 
-        np.random.seed(47)
+        np.random.seed(23)
         free, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
         choice = np.random.choice(free.shape[0], N_AGENTS, replace=False)
         starts = free[choice]
@@ -54,11 +56,13 @@ class Env:
             self.frame_files = []
 
         self.expert_planner = None
-        self.ground_truth_planner = Ground_truth_planner(self.ground_truth_info)
-
+        self.ground_truth_planner = None
 
     def import_ground_truth(self, episode_index):
-        map_dir = f'maps_medium'
+        if self.test:
+            map_dir = f'maps_test'
+        else:
+            map_dir = f'maps_medium'
         map_list = os.listdir(map_dir)
         map_index = episode_index % np.size(map_list)
         ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1)).astype(int)

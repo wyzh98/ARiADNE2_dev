@@ -7,9 +7,9 @@ from env import Env
 from agent import Agent
 from parameter import *
 from utils import *
-from model import PolicyNet
 from local_node_manager_quadtree import Local_node_manager
 from expert_planner import Expert_planner
+from ground_truth_planner import Ground_truth_planner
 
 if not os.path.exists(gifs_path):
     os.makedirs(gifs_path)
@@ -45,6 +45,7 @@ class Multi_agent_worker:
             self.env.expert_planner = Expert_planner(self.local_node_manager)
             paths = self.env.get_expert_paths()
         if EXPERT == 'ground_truth':
+            self.env.ground_truth_planner = Ground_truth_planner(self.env.ground_truth_info)
             paths = self.env.get_ground_truth_paths()
         expert_locations = []
         for path in paths:
@@ -71,10 +72,10 @@ class Multi_agent_worker:
                 dist_list.append(np.linalg.norm(next_location - robot.location))
                 next_node_index_list.append(next_node_index)
 
-            selected_locations = []
-            for path in paths:
-               if path:
-                   selected_locations.append(np.array(path[0]))
+            # selected_locations = []
+            # for path in paths:
+            #    if path:
+            #        selected_locations.append(np.array(path[0]))
 
             reward_list = []
             for selected_location, expert_location in zip(selected_locations, expert_locations):

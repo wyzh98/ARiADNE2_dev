@@ -142,12 +142,15 @@ class Agent:
 
         return [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask]
 
-    def select_next_waypoint(self, local_observation):
+    def select_next_waypoint(self, local_observation, greedy=False):
         _, _, _, _, current_local_edge, _ = local_observation
         with torch.no_grad():
             logp = self.policy_net(*local_observation)
 
-        action_index = torch.multinomial(logp.exp(), 1).long().squeeze(1)
+        if greedy:
+            action_index = torch.argmax(logp, dim=1).long()
+        else:
+            action_index = torch.multinomial(logp.exp(), 1).long().squeeze(1)
         next_node_index = current_local_edge[0, action_index.item(), 0].item()
         next_position = self.local_node_coords[next_node_index]
 
@@ -269,4 +272,38 @@ class Agent:
         self.episode_buffer[12] += current_local_index
         self.episode_buffer[13] += current_local_edge
         self.episode_buffer[14] += local_edge_padding_mask.bool()
+
+    def get_no_padding_observation(self):
+        local_node_coords = self.local_node_coords
+        local_node_utility = self.utility.reshape(-1, 1)
+        local_node_guidepost = self.guidepost.reshape(-1, 1)
+        local_node_occupancy = self.occupancy.reshape(-1, 1)
+        current_local_index = self.current_local_index
+        local_edge_mask = self.local_adjacent_matrix
+        current_local_edge = self.local_neighbor_indices
+        n_local_node = local_node_coords.shape[0]
+
+        current_local_node_coords = local_node_coords[self.current_local_index]
+        local_node_coords = np.concatenate((local_node_coords[:, 0].reshape(-1, 1) - current_local_node_coords[0],
+                                            local_node_coords[:, 1].reshape(-1, 1) - current_local_node_coords[1]),
+                                           axis=-1) / LOCAL_MAP_SIZE
+        local_node_utility = local_node_utility / 30
+        local_node_inputs = np.concatenate((local_node_coords, local_node_utility, local_node_guidepost, local_node_occupancy), axis=1)
+        local_node_inputs = torch.FloatTensor(local_node_inputs).unsqueeze(0).to(self.device)
+
+        local_node_padding_mask = torch.zeros((1, 1, n_local_node), dtype=torch.int16).to(self.device)
+
+        current_local_index = torch.tensor([current_local_index]).reshape(1, 1, 1).to(self.device)
+
+        local_edge_mask = torch.tensor(local_edge_mask).unsqueeze(0).to(self.device)
+
+        current_in_edge = np.argwhere(current_local_edge == self.current_local_index)[0][0]
+        current_local_edge = torch.tensor(current_local_edge).unsqueeze(0)
+        k_size = current_local_edge.size()[-1]
+        current_local_edge = current_local_edge.unsqueeze(-1)
+
+        local_edge_padding_mask = torch.zeros((1, 1, k_size), dtype=torch.int16).to(self.device)
+        local_edge_padding_mask[0, 0, current_in_edge] = 1
+
+        return [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask]
 

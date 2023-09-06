@@ -6,7 +6,7 @@ from ortools_solver import solve_vrp
 
 class Expert_planner:
     def __init__(self, local_node_manager):
-        self.max_iteration_step = 10
+        self.max_iteration_step = 5
         self.local_node_manager = local_node_manager
         self.last_viewpoints = None
 

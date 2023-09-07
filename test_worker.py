@@ -20,12 +20,11 @@ class TestWorker:
         self.device = device
         self.greedy = greedy
 
-        self.env = Env(global_step, plot=self.save_image)
-        self.n_agent = TEST_N_AGENTS
+        self.env = Env(global_step, n_agent=TEST_N_AGENTS, plot=self.save_image, test=True)
         self.local_node_manager = Local_node_manager(plot=self.save_image)
 
         self.robot_list = [Agent(i, policy_net, self.local_node_manager, self.device, self.save_image) for i in
-                           range(TEST_N_AGENTS)]
+                           range(self.env.n_agent)]
 
         self.perf_metrics = dict()
 
@@ -39,7 +38,7 @@ class TestWorker:
         if TEST_METHOD == 'tare':
             self.env.expert_planner = Expert_planner(self.local_node_manager)
         if TEST_METHOD == 'ground_truth':
-            self.env.ground_truth_planner = Ground_truth_planner(self.env.ground_truth_info)
+            self.env.ground_truth_planner = Ground_truth_planner(self.env.ground_truth_info, self.local_node_manager)
 
         for i in range(MAX_EPISODE_STEP):
             selected_locations = []
@@ -56,13 +55,13 @@ class TestWorker:
                 paths = self.env.get_expert_paths()
                 for path in paths:
                     selected_locations.append(np.array(path[0]))
-                dist_list = [k for k in range(TEST_N_AGENTS)]
+                dist_list = [k for k in range(self.env.n_agent)]
 
             if TEST_METHOD == 'ground_truth':
                 paths = self.env.get_ground_truth_paths()
                 for path in paths:
                     selected_locations.append(np.array(path[0]))
-                dist_list = [k for k in range(TEST_N_AGENTS)]
+                dist_list = [k for k in range(self.env.n_agent)]
 
             selected_locations = np.array(selected_locations).reshape(-1, 2)
             arriving_sequence = np.argsort(np.array(dist_list))
@@ -131,8 +130,8 @@ class TestWorker:
                      (np.array(robot.trajectory_y) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
                      linewidth=2, zorder=1)
             # for i in range(len(self.local_node_manager.x)):
-            #   plt.plot((self.local_node_manager.x[i] - self.local_map_info.map_origin_x) / self.cell_size,
-            #            (self.local_node_manager.y[i] - self.local_map_info.map_origin_y) / self.cell_size, 'tan', zorder=1)
+            #   plt.plot((self.local_node_manager.x[i] - self.env.belief_info.map_origin_x) / self.env.cell_size,
+            #            (self.local_node_manager.y[i] - self.env.belief_info.map_origin_y) / self.env.cell_size, 'tan', zorder=1)
 
         plt.subplot(1, 2, 1)
         plt.imshow(self.env.robot_belief, cmap='gray')

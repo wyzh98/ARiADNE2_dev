@@ -14,10 +14,11 @@ from expert_planner import Expert_planner
 
 
 class Env:
-    def __init__(self, episode_index, plot=False, test=False):
+    def __init__(self, episode_index, n_agent=N_AGENTS, plot=False, test=False):
         self.episode_index = episode_index
         self.plot = plot
         self.test = test
+        self.n_agent = n_agent
 
         self.ground_truth, initial_cell = self.import_ground_truth(episode_index)
         self.ground_truth_size = np.shape(self.ground_truth)  # cell
@@ -38,9 +39,9 @@ class Env:
 
         self.ground_truth_info = Map_info(self.ground_truth, self.belief_origin_x, self.belief_origin_y, self.cell_size)
 
-        np.random.seed(23)
+        np.random.seed(47)
         free, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
-        choice = np.random.choice(free.shape[0], N_AGENTS, replace=False)
+        choice = np.random.choice(free.shape[0], self.n_agent, replace=False)
         starts = free[choice]
         self.robot_locations = np.array(starts)
 

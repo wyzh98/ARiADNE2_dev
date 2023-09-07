@@ -23,6 +23,7 @@ def run_test():
     curr_test = 0
 
     dist_history = []
+    success = []
 
     job_list = []
     for i, meta_agent in enumerate(meta_agents):
@@ -37,6 +38,7 @@ def run_test():
             for job in done_jobs:
                 metrics, info = job
                 dist_history.append(metrics['travel_dist'])
+                success.append(metrics['success_rate'])
             if curr_test < NUM_TEST:
                 job_list.append(meta_agents[info['id']].job.remote(weights, curr_test))
                 curr_test += 1
@@ -44,6 +46,7 @@ def run_test():
         print('|#Total test:', NUM_TEST)
         print('|#Average length:', np.array(dist_history).mean())
         print('|#Length std:', np.array(dist_history).std())
+        print('|#Success rate', float(np.array(success).sum()) / NUM_TEST)
 
     except KeyboardInterrupt:
         print("CTRL_C pressed. Killing remote workers")

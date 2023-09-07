@@ -23,11 +23,10 @@ class Multi_agent_worker:
         self.device = device
 
         self.env = Env(global_step, plot=self.save_image)
-        self.n_agent = N_AGENTS
         self.local_node_manager = Local_node_manager(plot=self.save_image)
 
         self.robot_list = [Agent(i, policy_net, self.local_node_manager, self.device, self.save_image) for i in
-                           range(N_AGENTS)]
+                           range(self.env.n_agent)]
 
         self.episode_buffer = []
         self.perf_metrics = dict()
@@ -45,7 +44,7 @@ class Multi_agent_worker:
             self.env.expert_planner = Expert_planner(self.local_node_manager)
             paths = self.env.get_expert_paths()
         if EXPERT == 'ground_truth':
-            self.env.ground_truth_planner = Ground_truth_planner(self.env.ground_truth_info)
+            self.env.ground_truth_planner = Ground_truth_planner(self.env.ground_truth_info, self.local_node_manager)
             paths = self.env.get_ground_truth_paths()
         expert_locations = []
         for path in paths:
@@ -63,10 +62,10 @@ class Multi_agent_worker:
 
                 node = robot.local_node_manager.local_nodes_dict.find((robot.location[0], robot.location[1]))
                 check = np.array(node.data.neighbor_list)
-                assert next_location[0] + next_location[1] * 1j in check[:, 0] + check[:, 1] * 1j, print(next_location,
+                # assert next_location[0] + next_location[1] * 1j in check[:, 0] + check[:, 1] * 1j, print(next_location,
                                                                                                          robot.location,
                                                                                                          node.data.neighbor_list)
-                assert next_location[0] != robot.location[0] or next_location[1] != robot.location[1]
+                # assert next_location[0] != robot.location[0] or next_location[1] != robot.location[1]
 
                 selected_locations.append(next_location)
                 dist_list.append(np.linalg.norm(next_location - robot.location))

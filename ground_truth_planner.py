@@ -11,10 +11,10 @@ np.random.seed(47)
 
 
 class Ground_truth_planner:
-    def __init__(self, ground_truth_info):
-        self.max_iteration_step = 20
+    def __init__(self, ground_truth_info, local_node_manager):
+        self.max_iteration_step = 5
         self.ground_truth_info = deepcopy(ground_truth_info)
-        self.ground_truth_node_manager = Ground_truth_node_manager(self.ground_truth_info)
+        self.ground_truth_node_manager = Ground_truth_node_manager(self.ground_truth_info, local_node_manager)
         self.last_viewpoints = None
 
     def plan_coverage_paths(self, belief_info, robot_locations, map_change):
@@ -28,8 +28,9 @@ class Ground_truth_planner:
         q_indices = np.where(self.ground_truth_node_manager.utility > 0)[0]
         q_array = self.ground_truth_node_manager.ground_truth_node_coords[q_indices]
 
+        dist_dict, _ = self.ground_truth_node_manager.Dijkstra(robot_locations[0])
+
         if self.last_viewpoints:
-            self.max_iteration_step = 5
             nodes_dict = deepcopy(self.ground_truth_node_manager.ground_truth_nodes_dict)
             q_array_prime = deepcopy(q_array)
             v_list = [location for location in robot_locations]
@@ -58,9 +59,12 @@ class Ground_truth_planner:
                 sample = np.random.choice(indices, size=1, replace=False, p=weights)[0]
                 viewpoint_coords = q_array_prime[sample]
                 # assert viewpoint_coords[0] + viewpoint_coords[1] * 1j not in v_list[:][0] + v_list[:][1] * 1j
-                v_list.append(viewpoint_coords)
-                viewpoint = nodes_dict.find(viewpoint_coords.tolist()).data
-                observable_frontiers = np.array(viewpoint.observable_frontiers)
+                node = nodes_dict.find(viewpoint_coords.tolist()).data
+                if dist_dict[(node.coords[0], node.coords[1])] == 1e8:
+                    observable_frontiers = np.array([[], []]).reshape(-1, 2)
+                else:
+                    v_list.append(viewpoint_coords)
+                    observable_frontiers = np.array(node.observable_frontiers)
                 q_array_prime = np.delete(q_array_prime, sample, axis=0)
                 q_utility = []
                 for coords in q_array_prime:
@@ -89,9 +93,12 @@ class Ground_truth_planner:
                 sample = np.random.choice(indices, size=1, replace=False, p=weights)[0]
                 viewpoint_coords = q_array_prime[sample]
                 # assert viewpoint_coords[0] + viewpoint_coords[1] * 1j not in v_list[:][0] + v_list[:][1] * 1j
-                v_list.append(viewpoint_coords)
                 node = nodes_dict.find(viewpoint_coords.tolist()).data
-                observable_frontiers = np.array(node.observable_frontiers)
+                if dist_dict[(node.coords[0], node.coords[1])] == 1e8:
+                    observable_frontiers = np.array([[], []]).reshape(-1, 2)
+                else:
+                    v_list.append(viewpoint_coords)
+                    observable_frontiers = np.array(node.observable_frontiers)
                 q_array_prime = np.delete(q_array_prime, sample, axis=0)
                 q_utility = []
                 for coords in q_array_prime:
@@ -138,6 +145,8 @@ class Ground_truth_planner:
             dist_dict, prev_dict = self.ground_truth_node_manager.Dijkstra(viewpoints[i])
             for j in range(size):
                 path, dist = self.ground_truth_node_manager.get_Dijkstra_path_and_dist(dist_dict, prev_dict, viewpoints[j])
+                assert dist != 1e8
+
                 dist = dist.astype(int)
                 distance_matrix[i][j] = dist
                 distance_matrix[j][i] = dist
@@ -153,7 +162,7 @@ class Ground_truth_planner:
             for j in robot_indices:
                 distance_matrix[i][j] = 0
 
-        paths, dist = solve_vrp(distance_matrix, robot_indices)
+        paths, max_dist = solve_vrp(distance_matrix, robot_indices)
 
         paths_coords = []
         for path, robot_location in zip(paths, robot_locations):
@@ -171,25 +180,23 @@ class Ground_truth_planner:
                     if 0 < dist < nearest_dist:
                         nearest_dist = dist
                         nearest_utility_coords = coords
-                    if nearest_dist == 1e8 and dist != 0:
-                        print(dist, robot_location, coords)
-                        # print(nearest_dist, coords, nearest_utility_coords, robot_location)
 
                 path_coords, dist = self.ground_truth_node_manager.a_star(robot_location, nearest_utility_coords)
                 if len(path_coords) == 0:
                     print("nearest", nearest_utility_coords, robot_location, node_coords.shape, nearest_dist)
 
             paths_coords.append(path_coords)
-        return paths_coords, dist
+        return paths_coords, max_dist
 
 
 class Ground_truth_node_manager:
-    def __init__(self, ground_truth_map_info):
+    def __init__(self, ground_truth_map_info, local_node_manager):
         self.ground_truth_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
         self.ground_truth_map_info = ground_truth_map_info
         self.ground_truth_map_info.map = ((self.ground_truth_map_info.map == 255) * 128) + 127
         self.ground_truth_frontiers = get_frontier_in_map(self.ground_truth_map_info)
         self.ground_truth_node_coords, self.utility = self.initial_ground_truth_graph()
+        self.local_node_manager = local_node_manager
 
     def add_node_to_dict(self, coords):
         key = (coords[0], coords[1])
@@ -229,11 +236,15 @@ class Ground_truth_node_manager:
             self.ground_truth_frontiers = self.ground_truth_frontiers.reshape(-1, 2)
             self.ground_truth_frontiers = self.ground_truth_frontiers[valid_indices]
 
-        frontiers = get_frontier_in_map(belief_map_info)
-
         for node in self.ground_truth_nodes_dict.__iter__():
             if node.data.utility > 0:
-                node.data.update_node_observable_frontiers(self.ground_truth_frontiers, frontiers, belief_map_info)
+                coords = node.data.coords
+                local_node = self.local_node_manager.local_nodes_dict.find(coords.tolist())
+                if local_node:
+                    frontiers = local_node.data.observable_frontiers
+                else:
+                    frontiers = np.array([[], []]).reshape(0, 2)
+                node.data.update_node_observable_frontiers(self.ground_truth_frontiers, frontiers)
 
         utility = []
         for coords in self.ground_truth_node_coords:
@@ -432,7 +443,7 @@ class Ground_truth_node:
                             neighbor_node.neighbor_matrix[neighbor_matrix_x, neighbor_matrix_y] = 1
                             neighbor_node.neighbor_list.append(self.coords)
 
-    def update_node_observable_frontiers(self, ground_truth_frontiers, frontiers, belief_info):
+    def update_node_observable_frontiers(self, ground_truth_frontiers, frontiers):
 
         ground_truth_frontiers = ground_truth_frontiers.reshape(-1, 2)
         old_frontier_to_check = self.observable_frontiers[:, 0] + self.observable_frontiers[:, 1] * 1j
@@ -441,16 +452,8 @@ class Ground_truth_node:
             np.isin(old_frontier_to_check, local_frontier_to_check, assume_unique=True) == True)
         self.observable_frontiers = self.observable_frontiers[to_observe_index]
 
-        frontiers.reshape(-1, 2)
-        new_frontiers = []
-        if frontiers.shape[0] > 0:
-            for frontier in frontiers:
-                if np.linalg.norm(self.coords - frontier) < self.utility_range:
-                    if not check_collision(self.coords, frontier, belief_info):
-                        new_frontiers.append(frontier)
-            new_frontiers = np.array(new_frontiers)
-            if len(new_frontiers) > 0:
-                self.observable_frontiers = np.concatenate((self.observable_frontiers, new_frontiers), axis=0)
+        frontiers = frontiers.reshape(-1, 2)
+        self.observable_frontiers = np.concatenate((self.observable_frontiers, frontiers), axis=0)
 
         self.utility = self.observable_frontiers.shape[0]
         if self.utility <= MIN_UTILITY:

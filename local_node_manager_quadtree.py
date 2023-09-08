@@ -353,6 +353,6 @@ class Local_node:
 
     def set_visited(self):
         self.visited = 1
-        self.observable_frontiers = []
+        self.observable_frontiers = np.array([[], []]).reshape(0, 2)
         self.utility = 0
         self.utility_share[0] = self.utility

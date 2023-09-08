@@ -24,6 +24,8 @@ class Expert_planner:
         q_indices = np.where(utility > 0)[0]
         q_array = all_node_coords[q_indices]
 
+        dist_dict, _ = self.local_node_manager.Dijkstra(robot_locations[0])
+
         if self.last_viewpoints:
             nodes_dict = deepcopy(self.local_node_manager.local_nodes_dict)
             q_array_prime = deepcopy(q_array)
@@ -55,9 +57,12 @@ class Expert_planner:
                 sample = np.random.choice(indices, size=1, replace=False, p=weights)[0]
                 viewpoint_coords = q_array_prime[sample]
                 # assert viewpoint_coords[0] + viewpoint_coords[1] * 1j not in v_list[:][0] + v_list[:][1] * 1j
-                v_list.append(viewpoint_coords)
-                viewpoint = nodes_dict.find(viewpoint_coords.tolist()).data
-                observable_frontiers = np.array(viewpoint.observable_frontiers)
+                node = nodes_dict.find(viewpoint_coords.tolist()).data
+                if dist_dict[(node.coords[0], node.coords[1])] == 1e8:
+                    observable_frontiers = np.array([[], []]).reshape(-1, 2)
+                else:
+                    v_list.append(viewpoint_coords)
+                    observable_frontiers = np.array(node.observable_frontiers)
                 q_array_prime = np.delete(q_array_prime, sample, axis=0)
                 q_utility = []
                 for coords in q_array_prime:
@@ -82,9 +87,12 @@ class Expert_planner:
                 sample = np.random.choice(indices, size=1, replace=False, p=weights)[0]
                 viewpoint_coords = q_array_prime[sample]
                 # assert viewpoint_coords[0] + viewpoint_coords[1] * 1j not in v_list[:][0] + v_list[:][1] * 1j
-                v_list.append(viewpoint_coords)
                 node = nodes_dict.find(viewpoint_coords.tolist()).data
-                observable_frontiers = np.array(node.observable_frontiers)
+                if dist_dict[(node.coords[0], node.coords[1])] == 1e8:
+                    observable_frontiers = np.array([[], []]).reshape(-1, 2)
+                else:
+                    v_list.append(viewpoint_coords)
+                    observable_frontiers = np.array(node.observable_frontiers)
                 q_array_prime = np.delete(q_array_prime, sample, axis=0)
                 q_utility = []
                 for coords in q_array_prime:
@@ -132,6 +140,8 @@ class Expert_planner:
             for j in range(size):
                 path, dist = self.local_node_manager.get_Dijkstra_path_and_dist(dist_dict, prev_dict,
                                                                                        viewpoints[j])
+                assert dist != 1e8
+
                 dist = dist.astype(int)
                 distance_matrix[i][j] = dist
                 distance_matrix[j][i] = dist
@@ -147,7 +157,7 @@ class Expert_planner:
             for j in robot_indices:
                 distance_matrix[i][j] = 0
 
-        paths, dist = solve_vrp(distance_matrix, robot_indices)
+        paths, max_dist = solve_vrp(distance_matrix, robot_indices)
 
         paths_coords = []
         for path, robot_location in zip(paths, robot_locations):
@@ -165,8 +175,6 @@ class Expert_planner:
                     if 0 < dist < nearest_dist:
                         nearest_dist = dist
                         nearest_utility_coords = coords
-                    if nearest_dist == 1e8 and dist != 0:
-                        print(dist, robot_location, coords)
                         # print(nearest_dist, coords, nearest_utility_coords, robot_location)
 
                 path_coords, dist = self.local_node_manager.a_star(robot_location, nearest_utility_coords)
@@ -174,4 +182,4 @@ class Expert_planner:
                     print("nearest", nearest_utility_coords, robot_location, node_coords.shape, nearest_dist)
 
             paths_coords.append(path_coords)
-        return paths_coords, dist
+        return paths_coords, max_dist

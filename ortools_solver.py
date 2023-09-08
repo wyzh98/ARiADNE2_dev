@@ -102,5 +102,3 @@ def solve_vrp(distance_matrix, robot_indices):
         paths, dist = output_solution(manager, routing, solution, data)
         # print_solution(data, manager, routing, solution)
         return paths, dist
-    else:
-        return [], 1e8

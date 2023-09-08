@@ -30,7 +30,7 @@ class Multi_agent_worker:
 
         self.episode_buffer = []
         self.perf_metrics = dict()
-        for i in range(15):
+        for i in range(18):
             self.episode_buffer.append([])
 
     def run_episode(self):
@@ -63,8 +63,8 @@ class Multi_agent_worker:
                 node = robot.local_node_manager.local_nodes_dict.find((robot.location[0], robot.location[1]))
                 check = np.array(node.data.neighbor_list)
                 # assert next_location[0] + next_location[1] * 1j in check[:, 0] + check[:, 1] * 1j, print(next_location,
-                                                                                                         robot.location,
-                                                                                                         node.data.neighbor_list)
+                #                                                                                          robot.location,
+                #                                                                                          node.data.neighbor_list)
                 # assert next_location[0] != robot.location[0] or next_location[1] != robot.location[1]
 
                 selected_locations.append(next_location)
@@ -105,15 +105,19 @@ class Multi_agent_worker:
                     selected_locations_in_arriving_sequence[j] = selected_location
                     selected_locations[id] = selected_location
 
-            # reward_list = []
+            curr_node_indices = []
+            next_node_real_indices = []
             for robot, next_location, next_node_index in zip(self.robot_list, selected_locations, next_node_index_list):
+                next_node_real_index = np.where((next_location == robot.local_node_coords).all(axis=1))
+                next_node_real_indices.append(next_node_real_index)
+                curr_node_indices.append(robot.current_local_index)
+
                 self.env.step(next_location, robot.id)
-                # individual_reward = robot.utility[next_node_index] / 50
-                # reward_list.append(individual_reward)
 
                 robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
 
             for robot in self.robot_list:
+                robot.save_all_indices(np.array(curr_node_indices), np.array(next_node_real_indices))
                 robot.update_planning_state(self.env.robot_locations)
 
             # if self.save_image:

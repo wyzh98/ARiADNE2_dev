@@ -299,7 +299,7 @@ class QNet(nn.Module):
         return current_local_node_feature, enhanced_current_local_node_feature
 
     def output_q(self, current_local_node_feature, enhanced_current_local_node_feature, enhanced_local_node_feature,
-                 current_local_edge, local_edge_padding_mask, all_agent_indices, all_agent_next_indices):
+                 current_local_edge, local_edge_padding_mask, current_local_index, all_agent_indices, all_agent_next_indices):
         embedding_dim = enhanced_local_node_feature.size()[2]
         k_size = current_local_edge.size()[1]
         current_state_feature = current_local_node_feature
@@ -314,7 +314,9 @@ class QNet(nn.Module):
         all_agent_action_features = torch.cat((all_agent_node_feature, all_agent_selected_neighboring_feature), dim=-1)
         all_agent_action_features = self.all_agent_embedding(all_agent_action_features)
 
-        global_state_action_feature, _ = self.agent_decoder(current_state_feature, all_agent_action_features)
+        agent_mask = all_agent_indices == current_local_index
+
+        global_state_action_feature, _ = self.agent_decoder(current_state_feature, all_agent_action_features, agent_mask)
 
         action_features = torch.cat((current_state_feature.repeat(1, k_size, 1),
                                      enhanced_current_state_feature.repeat(1, k_size, 1),
@@ -331,6 +333,6 @@ class QNet(nn.Module):
         current_local_node_feature, enhanced_current_local_node_feature = self.decode_local_state(enhanced_local_node_feature,
                                                                                                   current_local_index, local_node_padding_mask)
         q_values = self.output_q(current_local_node_feature, enhanced_current_local_node_feature, enhanced_local_node_feature,
-                                 current_local_edge, local_edge_padding_mask, all_agent_indices, all_agent_next_indices)
+                                 current_local_edge, local_edge_padding_mask, current_local_index, all_agent_indices, all_agent_next_indices)
 
         return q_values

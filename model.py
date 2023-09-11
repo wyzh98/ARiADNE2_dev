@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import math
+from parameter import N_AGENTS
 
 
 # a pointer network layer for policy output
@@ -274,11 +276,11 @@ class QNet(nn.Module):
 
         # decoder
         self.local_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
-        self.agent_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
         self.current_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
         self.all_agent_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
 
-        self.q_values_layer = nn.Linear(embedding_dim * 4, 1)
+        self.q_values_layer = nn.Linear(embedding_dim * 2, 1)
+        self.mixer = QMixer(N_AGENTS, embedding_dim)
 
     def encode_local_graph(self, local_node_inputs, local_node_padding_mask, local_edge_mask):
         local_node_feature = self.initial_local_embedding(local_node_inputs)
@@ -303,7 +305,7 @@ class QNet(nn.Module):
         embedding_dim = enhanced_local_node_feature.size()[2]
         k_size = current_local_edge.size()[1]
         current_state_feature = current_local_node_feature
-        enhanced_current_state_feature = enhanced_current_local_node_feature
+        # enhanced_current_state_feature = enhanced_current_local_node_feature
 
         neighboring_feature = torch.gather(enhanced_local_node_feature, 1, current_local_edge.repeat(1, 1, embedding_dim))
 
@@ -314,16 +316,14 @@ class QNet(nn.Module):
         all_agent_action_features = torch.cat((all_agent_node_feature, all_agent_selected_neighboring_feature), dim=-1)
         all_agent_action_features = self.all_agent_embedding(all_agent_action_features)
 
-        agent_mask = all_agent_indices == current_local_index
+        # agent_mask = all_agent_indices == current_local_index
 
-        global_state_action_feature, _ = self.agent_decoder(current_state_feature, all_agent_action_features, agent_mask)
+        action_features = self.current_embedding(torch.cat((current_state_feature.repeat(1, k_size, 1), neighboring_feature), dim=-1))
+        all_features = torch.cat((action_features.unsqueeze(2).repeat(1, 1, N_AGENTS, 1),
+                                  all_agent_action_features.unsqueeze(1).repeat(1, k_size, 1, 1)), dim=-1)
 
-        action_features = torch.cat((current_state_feature.repeat(1, k_size, 1),
-                                     enhanced_current_state_feature.repeat(1, k_size, 1),
-                                     global_state_action_feature.repeat(1, k_size, 1),
-                                     neighboring_feature), dim=-1)
-
-        q_values = self.q_values_layer(action_features)
+        agent_qs = self.q_values_layer(all_features).squeeze(-1)
+        q_values = self.mixer(agent_qs, current_state_feature.squeeze(1))
         return q_values
 
     # @torch.compile
@@ -336,3 +336,37 @@ class QNet(nn.Module):
                                  current_local_edge, local_edge_padding_mask, current_local_index, all_agent_indices, all_agent_next_indices)
 
         return q_values
+
+
+class QMixer(nn.Module):
+    def __init__(self, n_agents, embedding_dim):
+        super(QMixer, self).__init__()
+        self.n_agents = n_agents
+        self.embedding_dim = embedding_dim
+        self.hyper_w_1 = nn.Linear(embedding_dim, embedding_dim * n_agents)
+        self.hyper_w_final = nn.Linear(embedding_dim, embedding_dim)
+        self.hyper_b_1 = nn.Linear(embedding_dim, embedding_dim)
+        self.V = nn.Sequential(nn.Linear(embedding_dim, embedding_dim),
+                               nn.ReLU(),
+                               nn.Linear(embedding_dim, 1))
+
+    def forward(self, agent_qs, states):
+        """agent_qs:(b, k, n), states:(b, d)"""
+        bs = agent_qs.size(0)
+        ks = agent_qs.size(1)
+        agent_qs = agent_qs.view(-1, ks, self.n_agents)
+        # First layer
+        w1 = torch.abs(self.hyper_w_1(states))  # (b, statelen) -> +(b, d*n)
+        b1 = self.hyper_b_1(states)
+        w1 = w1.view(-1, self.n_agents, self.embedding_dim)  # +(b, n, d)
+        b1 = b1.view(-1, 1, self.embedding_dim)  # (b, 1, d)
+        hidden = F.elu(torch.bmm(agent_qs, w1) + b1)  # (b, k, d)
+        # Second layer
+        w_final = torch.abs(self.hyper_w_final(states))
+        w_final = w_final.view(-1, self.embedding_dim, 1)  # +(b, d, 1)
+        # State-dependent bias
+        v = self.V(states).view(-1, 1, 1)
+        y = torch.bmm(hidden, w_final) + v
+        q_tot = y.view(bs, -1, 1)  # (b, k, 1)
+        return q_tot
+

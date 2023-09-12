@@ -94,7 +94,7 @@ class Multi_agent_worker:
 
             # for robot in self.robot_list:
             #     num_new_frontiers = robot.get_num_new_safe_frontiers(old_safe_frontier)
-            #     reward_list[robot.id] += num_new_frontiers / 50
+            #     reward_list[robot.id] += num_new_frontiers / 100
 
             self.env.decrease_safety(selected_locations)
 
@@ -166,9 +166,12 @@ class Multi_agent_worker:
                 plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=0.5)
                 plt.axis('off')
                 plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.utility, zorder=2)
-                guidepost = robot.local_node_coords[np.where(robot.guidepost == 1)[0]]
-                guidepost_cell = get_cell_position_from_coords(guidepost, robot.global_map_info).reshape(-1, 2)
-                plt.scatter(guidepost_cell[:, 0], guidepost_cell[:, 1], c=c, marker='*', s=10, zorder=7)
+                # guidepost = robot.local_node_coords[np.where(robot.guidepost == 1)[0]]
+                # guidepost_cell = get_cell_position_from_coords(guidepost, robot.global_map_info).reshape(-1, 2)
+                # plt.scatter(guidepost_cell[:, 0], guidepost_cell[:, 1], c=c, marker='*', s=10, zorder=7)
+                signal = robot.local_node_coords[np.where(robot.signal == 1)[0]]
+                signal_cell = get_cell_position_from_coords(signal, robot.global_map_info).reshape(-1, 2)
+                plt.scatter(signal_cell[:, 0], signal_cell[:, 1], c='w', marker='.', s=2, zorder=3, alpha=0.5)
 
             robot_cell = get_cell_position_from_coords(robot.location, robot.safe_zone_info)
             plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=16, zorder=5)
@@ -187,5 +190,7 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
+    ckp = torch.load('model/checkpoint.pth', map_location='cpu')
+    policy_net.load_state_dict(ckp['policy_model'])
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
     worker.run_episode()

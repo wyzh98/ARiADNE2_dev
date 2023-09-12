@@ -82,7 +82,7 @@ class Env:
                                          self.ground_truth)
 
     def decrease_safety(self, cells_togo):
-        cells_frontiers = get_cell_position_from_coords(self.safe_zone_frontiers, self.safe_info)
+        cells_frontiers = get_cell_position_from_coords(self.safe_zone_frontiers, self.safe_info).reshape(-1, 2)
         for frontier in cells_frontiers:
             nearby_agent_indices = np.argwhere(np.linalg.norm(frontier - cells_togo, axis=1) < round(self.sensor_range / self.cell_size) + 1)
             nearby_agent_cells = cells_togo[nearby_agent_indices]

@@ -206,5 +206,5 @@ if __name__ == '__main__':
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
     ckp = torch.load('model/checkpoint.pth', map_location='cpu')
     policy_net.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
     worker.run_episode()

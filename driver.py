@@ -205,8 +205,8 @@ def main():
                             dim=1).unsqueeze(1)
                         target_q_batch = reward + GAMMA * (1 - done) * value_prime
 
-                    q_values1 = dp_q_net1(*observation)
-                    q_values2 = dp_q_net2(*observation)
+                    q_values1 = dp_q_net1(*observation, all_agent_indices, all_agent_next_indices)
+                    q_values2 = dp_q_net2(*observation, all_agent_indices, all_agent_next_indices)
                     q1 = torch.gather(q_values1, 1, action)
                     q2 = torch.gather(q_values2, 1, action)
                     mse_loss = nn.MSELoss()

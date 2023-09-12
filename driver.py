@@ -109,7 +109,7 @@ def main():
         job_list.append(meta_agent.job.remote(weights_set, curr_episode))
 
     # initialize metric collector
-    metric_name = ['travel_dist', 'success_rate', 'explored_rate']
+    metric_name = ['travel_dist', 'success_rate', 'explored_rate', 'safe_increase_rate']
     training_data = []
     perf_metrics = {}
     for n in metric_name:
@@ -117,7 +117,7 @@ def main():
 
     # initialize training replay buffer
     experience_buffer = []
-    for i in range(15):
+    for i in range(18):
         experience_buffer.append([])
 
     # collect data from worker and do training
@@ -175,6 +175,9 @@ def main():
                     next_current_local_index = torch.stack(rollouts[12]).to(device)
                     next_current_local_edge = torch.stack(rollouts[13]).to(device)
                     next_local_edge_padding_mask = torch.stack(rollouts[14]).to(device)
+                    all_agent_indices = torch.stack(rollouts[15]).to(device)
+                    all_agent_next_indices = torch.stack(rollouts[16]).to(device)
+                    next_all_agent_next_indices = torch.stack(rollouts[17]).to(device)
 
                     observation = [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index,
                                    current_local_edge, local_edge_padding_mask]
@@ -183,8 +186,8 @@ def main():
 
                     # SAC
                     with torch.no_grad():
-                        q_values1 = dp_q_net1(*observation)
-                        q_values2 = dp_q_net2(*observation)
+                        q_values1 = dp_q_net1(*observation, all_agent_indices, all_agent_next_indices)
+                        q_values2 = dp_q_net2(*observation, all_agent_indices, all_agent_next_indices)
                         q_values = torch.min(q_values1, q_values2)
 
                     logp = dp_policy(*observation)
@@ -194,8 +197,8 @@ def main():
 
                     with torch.no_grad():
                         next_logp = dp_policy(*next_observation)
-                        next_q_values1 = dp_target_q_net1(*next_observation)
-                        next_q_values2 = dp_target_q_net2(*next_observation)
+                        next_q_values1 = dp_target_q_net1(*next_observation, all_agent_next_indices, next_all_agent_next_indices)
+                        next_q_values2 = dp_target_q_net2(*next_observation, all_agent_next_indices, next_all_agent_next_indices)
                         next_q_values = torch.min(next_q_values1, next_q_values2)
                         value_prime = torch.sum(
                             next_logp.unsqueeze(2).exp() * (next_q_values - log_alpha.exp() * next_logp.unsqueeze(2)),
@@ -301,7 +304,8 @@ def main():
 def write_to_tensor_board(writer, tensorboard_data, curr_episode):
     tensorboard_data = np.array(tensorboard_data)
     tensorboard_data = list(np.nanmean(tensorboard_data, axis=0))
-    reward, value, policy_loss, q_value_loss, entropy, policy_grad_norm, q_value_grad_norm, log_alpha, alpha_loss, travel_dist, success_rate, explored_rate = tensorboard_data
+    (reward, value, policy_loss, q_value_loss, entropy, policy_grad_norm, q_value_grad_norm, log_alpha, alpha_loss,
+     travel_dist, success_rate, explored_rate, safe_increase_rate) = tensorboard_data
     metrics = { "Losses/Value": value,
                 "Losses/Policy Loss": policy_loss,
                 "Losses/Alpha Loss": alpha_loss,
@@ -314,6 +318,7 @@ def write_to_tensor_board(writer, tensorboard_data, curr_episode):
                 "Perf/Travel Distance": travel_dist,
                 "Perf/Success Rate": success_rate,
                 "Perf/Explored Rate": explored_rate,
+                "Perf/Safe Increase Percent": safe_increase_rate,
                }
     for k, v in metrics.items():
         writer.add_scalar(k, v, curr_episode)

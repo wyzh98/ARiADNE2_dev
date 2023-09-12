@@ -30,7 +30,7 @@ class Multi_agent_worker:
 
         self.episode_buffer = []
         self.perf_metrics = dict()
-        for i in range(15):
+        for i in range(18):
             self.episode_buffer.append([])
 
     def run_episode(self):
@@ -40,6 +40,7 @@ class Multi_agent_worker:
         for robot in self.robot_list:    
             robot.update_planning_state(self.env.robot_locations)
 
+        safe_increase_log = []
         for i in range(MAX_EPISODE_STEP):
             selected_locations = []
             dist_list = []
@@ -82,6 +83,8 @@ class Multi_agent_worker:
                     selected_locations[id] = selected_location
 
             reward_list = [0] * self.n_agent
+            curr_node_indices = []
+            next_node_real_indices = []
             # for robot in self.robot_list:
             #     num_dangerous_frontiers = robot.get_num_dangerous_frontiers(selected_locations)
             #     reward_list[robot.id] += -num_dangerous_frontiers / 100
@@ -89,6 +92,10 @@ class Multi_agent_worker:
 
             for robot, next_location in zip(self.robot_list, selected_locations):
                 # dist = np.linalg.norm(next_location - robot.location)
+                next_node_real_index = np.where((next_location == robot.local_node_coords).all(axis=1))
+                next_node_real_indices.append(next_node_real_index)
+                curr_node_indices.append(robot.current_local_index)
+
                 self.env.step(next_location, robot.id)
                 robot.update_graph(self.env.belief_info, self.env.safe_info, deepcopy(self.env.robot_locations[robot.id]))
 
@@ -107,13 +114,19 @@ class Multi_agent_worker:
 
             team_reward = self.env.calculate_reward() - 0.3
 
+            if team_reward + 0.3 > 0:
+                safe_increase_log.append(1)
+            else:
+                safe_increase_log.append(0)
+
             if done:
                 team_reward += 30
 
             for robot, reward in zip(self.robot_list, reward_list):
+                robot.save_all_indices(np.array(curr_node_indices), np.array(next_node_real_indices))
                 robot.save_reward(reward + team_reward)
-                robot.update_planning_state(self.env.robot_locations)
                 robot.save_done(done)
+                robot.update_planning_state(self.env.robot_locations)
 
             if self.save_image:
                 self.plot_local_env(i)
@@ -127,6 +140,7 @@ class Multi_agent_worker:
         self.perf_metrics['travel_dist'] = max([robot.travel_dist for robot in self.robot_list])
         self.perf_metrics['explored_rate'] = self.env.safe_rate
         self.perf_metrics['success_rate'] = done
+        self.perf_metrics['safe_increase_rate'] = np.mean(safe_increase_log)
 
         # save episode buffer
         for robot in self.robot_list:

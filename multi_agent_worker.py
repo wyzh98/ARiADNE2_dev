@@ -109,7 +109,7 @@ class Multi_agent_worker:
                 self.env.step(next_location, robot.id)
                 robot.update_graph(self.env.belief_info, self.env.safe_info, deepcopy(self.env.robot_locations[robot.id]))
 
-            if self.robot_list[0].utility.sum() == 0:
+            if (self.robot_list[0].signal == 0).sum() == 0:  # no unsafe node
                 done = True
 
             team_reward = self.env.calculate_reward() - 0.3

@@ -54,7 +54,6 @@ def main():
         vars(parameter).__delitem__('__builtins__')
         wandb.init(project='MAExploration', name=FOLDER_NAME, entity='ezo', config=vars(parameter), resume='allow',
                    id=None, notes=None)
-        wandb.watch([global_policy_net, global_q_net1], log='all', log_freq=1000, log_graph=False)
 
     # load model and optimizer trained before
     if LOAD_MODEL:
@@ -137,6 +136,10 @@ def main():
             # launch new task
             curr_episode += 1
             job_list.append(meta_agents[info['id']].job.remote(weights_set, curr_episode))
+
+            if len(experience_buffer[0]) >= REPLAY_SIZE:
+                for i in range(len(experience_buffer)):
+                    experience_buffer[i] = experience_buffer[i][-REPLAY_SIZE:]
 
             # start training
             if curr_episode % 1 == 0 and len(experience_buffer[0]) >= MINIMUM_BUFFER_SIZE:

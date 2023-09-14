@@ -114,7 +114,7 @@ def main():
 
     # initialize training replay buffer
     experience_buffer = []
-    for i in range(15):
+    for i in range(18):
         experience_buffer.append([])
 
     # collect data from worker and do training
@@ -176,6 +176,9 @@ def main():
                     next_current_local_index = torch.stack(rollouts[12]).to(device)
                     next_current_local_edge = torch.stack(rollouts[13]).to(device)
                     next_local_edge_padding_mask = torch.stack(rollouts[14]).to(device)
+                    all_agent_indices = torch.stack(rollouts[15]).to(device)
+                    all_agent_next_indices = torch.stack(rollouts[16]).to(device)
+                    next_all_agent_next_indices = torch.stack(rollouts[17]).to(device)
 
                     observation = [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index,
                                    current_local_edge, local_edge_padding_mask]
@@ -184,8 +187,8 @@ def main():
 
                     # SAC
                     with torch.no_grad():
-                        q_values1 = dp_q_net1(*observation)
-                        q_values2 = dp_q_net2(*observation)
+                        q_values1 = dp_q_net1(*observation, all_agent_indices, all_agent_next_indices)
+                        q_values2 = dp_q_net2(*observation, all_agent_indices, all_agent_next_indices)
                         q_values = torch.min(q_values1, q_values2)
 
                     logp = dp_policy(*observation)
@@ -195,16 +198,16 @@ def main():
 
                     with torch.no_grad():
                         next_logp = dp_policy(*next_observation)
-                        next_q_values1 = dp_target_q_net1(*next_observation)
-                        next_q_values2 = dp_target_q_net2(*next_observation)
+                        next_q_values1 = dp_target_q_net1(*next_observation, all_agent_next_indices, next_all_agent_next_indices)
+                        next_q_values2 = dp_target_q_net2(*next_observation, all_agent_next_indices, next_all_agent_next_indices)
                         next_q_values = torch.min(next_q_values1, next_q_values2)
                         value_prime = torch.sum(
                             next_logp.unsqueeze(2).exp() * (next_q_values - log_alpha.exp() * next_logp.unsqueeze(2)),
                             dim=1).unsqueeze(1)
                         target_q_batch = reward + GAMMA * (1 - done) * value_prime
 
-                    q_values1 = dp_q_net1(*observation)
-                    q_values2 = dp_q_net2(*observation)
+                    q_values1 = dp_q_net1(*observation, all_agent_indices, all_agent_next_indices)
+                    q_values2 = dp_q_net2(*observation, all_agent_indices, all_agent_next_indices)
                     q1 = torch.gather(q_values1, 1, action)
                     q2 = torch.gather(q_values2, 1, action)
                     mse_loss = nn.MSELoss()

@@ -30,7 +30,7 @@ class Multi_agent_worker:
 
         self.episode_buffer = []
         self.perf_metrics = dict()
-        for i in range(15):
+        for i in range(18):
             self.episode_buffer.append([])
 
     def run_episode(self):
@@ -83,7 +83,13 @@ class Multi_agent_worker:
                     selected_locations[id] = selected_location
 
             reward_list = []
+            curr_node_indices = []
+            next_node_real_indices = []
             for robot, next_location, next_node_index in zip(self.robot_list, selected_locations, next_node_index_list):
+                next_node_real_index = np.where((next_location == robot.local_node_coords).all(axis=1))
+                next_node_real_indices.append(next_node_real_index)
+                curr_node_indices.append(robot.current_local_index)
+
                 self.env.step(next_location, robot.id)
                 individual_reward = robot.utility[next_node_index] / 50
                 reward_list.append(individual_reward)
@@ -98,6 +104,7 @@ class Multi_agent_worker:
                 team_reward += 10
 
             for robot, reward in zip(self.robot_list, reward_list):
+                robot.save_all_indices(np.array(curr_node_indices), np.array(next_node_real_indices))
                 robot.save_reward(reward + team_reward)
                 robot.update_planning_state(self.env.robot_locations)
                 robot.save_done(done)

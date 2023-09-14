@@ -48,10 +48,10 @@ class Env:
 
 
     def import_ground_truth(self, episode_index):
-        map_dir = f'maps'
+        map_dir = f'maps_medium'
         map_list = os.listdir(map_dir)
         map_index = episode_index % np.size(map_list)
-        ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1) * 255).astype(int)
+        ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1)).astype(int)
 
         ground_truth = block_reduce(ground_truth, 2, np.min)
 
@@ -62,11 +62,6 @@ class Env:
         ground_truth = ground_truth * 254 + 1
 
         return ground_truth, robot_cell
-
-    def update_robot_location(self, robot_location):
-        self.robot_location = robot_location
-        self.robot_cell = np.array([round((robot_location[0] - self.belief_origin_x) / self.cell_size),
-                                    round((robot_location[1] - self.belief_origin_y) / self.cell_size)])
 
     def update_robot_belief(self, robot_cell):
         self.robot_belief = sensor_work(robot_cell, round(self.sensor_range / self.cell_size), self.robot_belief,

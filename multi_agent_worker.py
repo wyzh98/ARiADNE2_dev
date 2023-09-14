@@ -170,3 +170,10 @@ class Multi_agent_worker:
         plt.savefig('{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step), dpi=150)
         frame = '{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step)
         self.env.frame_files.append(frame)
+
+
+if __name__ == '__main__':
+    from parameter import *
+    policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
+    worker.run_episode()

@@ -2,7 +2,7 @@ FOLDER_NAME = 'ariadne1_multi_agent'
 model_path = f'model/{FOLDER_NAME}'
 train_path = f'train/{FOLDER_NAME}'
 gifs_path = f'gifs/{FOLDER_NAME}'
-SUMMARY_WINDOW = 32
+SUMMARY_WINDOW = 2
 LOAD_MODEL = False  # do you want to load the model trained before
 SAVE_IMG_GAP = 100
 
@@ -35,5 +35,6 @@ LOCAL_NODE_PADDING_SIZE = 360  # the number of nodes will be padded to this valu
 
 USE_GPU = False  # do you want to collect training data using GPUs
 USE_GPU_GLOBAL = True  # do you want to train the network using GPUs
-NUM_GPU = 0
-NUM_META_AGENT = 32
+NUM_GPU = 1
+NUM_META_AGENT = 8
+USE_WANDB = True

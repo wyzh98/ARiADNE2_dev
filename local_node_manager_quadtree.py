@@ -109,7 +109,7 @@ class NodeManager:
         nearest_utility_coords = robot_location
         nearest_dist = 1e8
         for coords in utility_node_coords:
-            if coords[0] != robot_location[0] and coords[1] != robot_location[1]:
+            if coords[0] != robot_location[0] or coords[1] != robot_location[1]:
                 dist = dist_dict[(coords[0], coords[1])]
                 if dist < nearest_dist:
                     nearest_dist = dist
@@ -118,7 +118,7 @@ class NodeManager:
         path_coords, dist = self.a_star(robot_location, nearest_utility_coords)
         guidepost = np.zeros_like(utility)
         for coords in path_coords:
-            if coords[0] != robot_location[0] and coords[1] != robot_location[1]:
+            if coords[0] != robot_location[0] or coords[1] != robot_location[1]:
                 index = np.argwhere(all_node_coords[:, 0] + all_node_coords[:, 1] * 1j == coords[0] + coords[1] * 1j)[0]
                 guidepost[index] = 1
 

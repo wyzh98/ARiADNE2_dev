@@ -297,16 +297,15 @@ class Agent:
 
     def save_all_indices(self, all_agent_curr_indices, all_agent_next_indices):
         self.episode_buffer[15] += torch.tensor(all_agent_curr_indices).reshape(1, -1, 1).to(self.device)
-        self.episode_buffer[16] += torch.tensor(all_agent_next_indices).reshape(1, -1, 1).to(self.device)
 
-    def save_next_observations(self, local_observation):
+    def save_next_observations(self, local_observation, next_node_index_list):
         self.episode_buffer[9] = copy.deepcopy(self.episode_buffer[0])[1:]
         self.episode_buffer[10] = copy.deepcopy(self.episode_buffer[1])[1:]
         self.episode_buffer[11] = copy.deepcopy(self.episode_buffer[2])[1:]
         self.episode_buffer[12] = copy.deepcopy(self.episode_buffer[3])[1:]
         self.episode_buffer[13] = copy.deepcopy(self.episode_buffer[4])[1:]
         self.episode_buffer[14] = copy.deepcopy(self.episode_buffer[5])[1:]
-        self.episode_buffer[17] = copy.deepcopy(self.episode_buffer[16])[1:]
+        self.episode_buffer[16] = copy.deepcopy(self.episode_buffer[15])[1:]
 
         local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
         self.episode_buffer[9] += local_node_inputs
@@ -315,5 +314,7 @@ class Agent:
         self.episode_buffer[12] += current_local_index
         self.episode_buffer[13] += current_local_edge
         self.episode_buffer[14] += local_edge_padding_mask.bool()
-        self.episode_buffer[17] += copy.deepcopy(self.episode_buffer[16][:-1])
+        self.episode_buffer[16] += torch.tensor(next_node_index_list).reshape(1, -1, 1).to(self.device)
+        self.episode_buffer[17] = copy.deepcopy(self.episode_buffer[16])[1:]
+        self.episode_buffer[17] += copy.deepcopy(self.episode_buffer[16])[:-1]
 

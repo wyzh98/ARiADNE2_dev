@@ -195,6 +195,12 @@ def main():
                         (logp.exp().unsqueeze(2) * (log_alpha.exp().detach() * logp.unsqueeze(2) - q_values.detach())),
                         dim=1).mean()
 
+                    global_policy_optimizer.zero_grad()
+                    policy_loss.backward()
+                    policy_grad_norm = torch.nn.utils.clip_grad_norm_(global_policy_net.parameters(), max_norm=100,
+                                                                      norm_type=2)
+                    global_policy_optimizer.step()
+
                     with torch.no_grad():
                         next_logp = dp_policy(*next_observation)
                         next_q_values1 = dp_target_q_net1(*next_observation, all_agent_next_indices, next_all_agent_next_indices)
@@ -205,25 +211,21 @@ def main():
                             dim=1).unsqueeze(1)
                         target_q_batch = reward + GAMMA * (1 - done) * value_prime
 
-                    q_values1 = dp_q_net1(*observation, all_agent_indices, all_agent_next_indices)
-                    q_values2 = dp_q_net2(*observation, all_agent_indices, all_agent_next_indices)
-                    q1 = torch.gather(q_values1, 1, action)
-                    q2 = torch.gather(q_values2, 1, action)
                     mse_loss = nn.MSELoss()
-                    q1_loss = mse_loss(q1, target_q_batch.detach()).mean()
-                    q2_loss = mse_loss(q2, target_q_batch.detach()).mean()
 
-                    global_policy_optimizer.zero_grad()
-                    policy_loss.backward()
-                    policy_grad_norm = torch.nn.utils.clip_grad_norm_(global_policy_net.parameters(), max_norm=100,
-                                                                      norm_type=2)
-                    global_policy_optimizer.step()
+                    q_values1 = dp_q_net1(*observation, all_agent_indices, all_agent_next_indices)
+                    q1 = torch.gather(q_values1, 1, action)
+                    q1_loss = mse_loss(q1, target_q_batch.detach()).mean()
 
                     global_q_net1_optimizer.zero_grad()
                     q1_loss.backward()
                     q_grad_norm = torch.nn.utils.clip_grad_norm_(global_q_net1.parameters(), max_norm=20000,
                                                                  norm_type=2)
                     global_q_net1_optimizer.step()
+
+                    q_values2 = dp_q_net2(*observation, all_agent_indices, all_agent_next_indices)
+                    q2 = torch.gather(q_values2, 1, action)
+                    q2_loss = mse_loss(q2, target_q_batch.detach()).mean()
 
                     global_q_net2_optimizer.zero_grad()
                     q2_loss.backward()

@@ -82,9 +82,9 @@ class Multi_agent_worker:
                     selected_locations_in_arriving_sequence[j] = selected_location
                     selected_locations[id] = selected_location
 
+            curr_node_indices = np.array([robot.current_local_index for robot in self.robot_list])
+
             reward_list = [0] * self.n_agent
-            curr_node_indices = []
-            next_node_real_indices = []
             # for robot in self.robot_list:
             #     num_dangerous_frontiers = robot.get_num_dangerous_frontiers(selected_locations)
             #     reward_list[robot.id] += -num_dangerous_frontiers / 100
@@ -92,10 +92,6 @@ class Multi_agent_worker:
 
             for robot, next_location in zip(self.robot_list, selected_locations):
                 # dist = np.linalg.norm(next_location - robot.location)
-                next_node_real_index = np.where((next_location == robot.local_node_coords).all(axis=1))
-                next_node_real_indices.append(next_node_real_index)
-                curr_node_indices.append(robot.current_local_index)
-
                 self.env.step(next_location, robot.id)
                 robot.update_graph(self.env.belief_info, self.env.safe_info, deepcopy(self.env.robot_locations[robot.id]))
 
@@ -123,7 +119,7 @@ class Multi_agent_worker:
                 team_reward += 30
 
             for robot, reward in zip(self.robot_list, reward_list):
-                robot.save_all_indices(np.array(curr_node_indices), np.array(next_node_real_indices))
+                robot.save_all_indices(np.array(curr_node_indices))
                 robot.save_reward(reward + team_reward)
                 robot.save_done(done)
                 robot.update_planning_state(self.env.robot_locations)
@@ -145,7 +141,7 @@ class Multi_agent_worker:
         # save episode buffer
         for robot in self.robot_list:
             local_observation = robot.get_local_observation()
-            robot.save_next_observations(local_observation)
+            robot.save_next_observations(local_observation, next_node_index_list)
             for i in range(len(self.episode_buffer)):
                 self.episode_buffer[i] += robot.episode_buffer[i]
 

@@ -295,7 +295,7 @@ class Agent:
     def save_done(self, done):
         self.episode_buffer[8] += torch.tensor([int(done)]).reshape(1, 1, 1).to(self.device)
 
-    def save_all_indices(self, all_agent_curr_indices, all_agent_next_indices):
+    def save_all_indices(self, all_agent_curr_indices):
         self.episode_buffer[15] += torch.tensor(all_agent_curr_indices).reshape(1, -1, 1).to(self.device)
 
     def save_next_observations(self, local_observation, next_node_index_list):

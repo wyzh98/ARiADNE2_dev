@@ -250,10 +250,10 @@ class Agent:
         self.episode_buffer[6] += action_index.reshape(1, 1, 1)
 
     def save_reward(self, reward):
-        self.episode_buffer[7] += torch.FloatTensor([reward]).reshape(1, 1, 1).to(self.device)
+        self.episode_buffer[7] += torch.FloatTensor(reward).reshape(1, 1, 1).to(self.device)
 
     def save_done(self, done):
-        self.episode_buffer[8] += torch.tensor([int(done)]).reshape(1, 1, 1).to(self.device)
+        self.episode_buffer[8] += torch.tensor(int(done)).reshape(1, 1, 1).to(self.device)
 
     def save_all_indices(self, all_agent_curr_indices):
         self.episode_buffer[15] += torch.tensor(all_agent_curr_indices).reshape(1, -1, 1).to(self.device)

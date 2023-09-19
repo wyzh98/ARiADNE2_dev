@@ -53,6 +53,10 @@ class Agent:
             self.trajectory_x = []
             self.trajectory_y = []
 
+        self.expert_net = copy.deepcopy(policy_net)
+        checkpoint = torch.load(f'./model/ariadne1_rl_maac/checkpoint.pth')
+        self.expert_net.load_state_dict(checkpoint['policy_model'])
+        self.expert_net.eval()
 
     def update_global_map(self, global_map_info):
         # no need in training because of shallow copy
@@ -147,12 +151,17 @@ class Agent:
         _, _, _, _, current_local_edge, _ = local_observation
         with torch.no_grad():
             logp = self.policy_net(*local_observation)
+            expert_logp = self.expert_net(*local_observation)
 
         action_index = torch.multinomial(logp.exp(), 1).long().squeeze(1)
         next_node_index = current_local_edge[0, action_index.item(), 0].item()
         next_position = self.local_node_coords[next_node_index]
 
-        return next_position, next_node_index, action_index
+        expert_action_index = torch.argmax(expert_logp, dim=1).long()
+        next_expert_node_index = current_local_edge[0, expert_action_index.item(), 0].item()
+        next_expert_location = self.local_node_coords[next_expert_node_index]
+
+        return next_position, next_node_index, action_index, next_expert_location
 
     def get_local_map(self, location):
         local_map_origin_x = (location[

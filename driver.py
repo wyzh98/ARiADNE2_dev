@@ -58,7 +58,7 @@ def main():
     # load model and optimizer trained before
     if LOAD_MODEL:
         print('Loading Model...')
-        checkpoint = torch.load(model_path + '/checkpoint.pth', map_location='cpu')
+        checkpoint = torch.load(model_path + '/checkpoint.pth')
         global_policy_net.load_state_dict(checkpoint['policy_model'])
         global_q_net1.load_state_dict(checkpoint['q_net1_model'])
         global_q_net2.load_state_dict(checkpoint['q_net2_model'])
@@ -153,7 +153,7 @@ def main():
                 indices = range(len(experience_buffer[0]))
 
                 # training for n times each step
-                for j in range(4):
+                for j in range(8):
                     # randomly sample a batch data
                     sample_indices = random.sample(indices, BATCH_SIZE)
                     rollouts = []
@@ -271,7 +271,7 @@ def main():
             weights_set.append(policy_weights)
 
             # update the target q net
-            if target_q_update_counter > 128:
+            if target_q_update_counter > 512:
                 print("update target q net")
                 target_q_update_counter = 1
                 global_target_q_net1.load_state_dict(global_q_net1.state_dict())

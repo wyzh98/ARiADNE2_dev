@@ -1,3 +1,4 @@
+import copy
 import time
 
 import numpy as np
@@ -7,12 +8,24 @@ import quads
 
 
 class Local_node_manager:
-    def __init__(self, plot=False):
+    def __init__(self, ground_truth=None, ground_truth_info=None, plot=False):
         self.local_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
+        self.ground_truth_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
+        if ground_truth is not None:
+            self.init_ground_truth_nodes(ground_truth, ground_truth_info)
         self.plot = plot
         if self.plot:
             self.x = []
             self.y = []
+
+    def init_ground_truth_nodes(self, ground_truth, ground_truth_info):
+        for coords in ground_truth:
+            key = (coords[0], coords[1])
+            node = Local_node(coords, np.array([]), ground_truth_info)
+            self.ground_truth_nodes_dict.insert(point=key, data=node)
+        for coords in ground_truth:
+            node = self.ground_truth_nodes_dict.find((coords[0], coords[1])).data
+            node.update_neighbor_nodes(ground_truth_info, self.ground_truth_nodes_dict)
 
     def check_node_exist_in_dict(self, coords):
         key = (coords[0], coords[1])
@@ -104,6 +117,39 @@ class Local_node_manager:
             else:
                 occupancy[index] = 1
         return all_node_coords, utility, guidepost, occupancy, adjacent_matrix, current_index, neighbor_indices
+
+    def get_all_node_true_graph(self, robot_location, robot_locations, all_node_coords):
+        ground_truth_coords = copy.deepcopy(all_node_coords).tolist()
+        utility = []
+        guidepost = []
+        for coords in all_node_coords:
+            node = self.local_nodes_dict.find((coords[0], coords[1])).data
+            utility.append(node.utility)
+            guidepost.append(1)
+
+        for node in self.ground_truth_nodes_dict.__iter__():
+            coords = node.data.coords
+            if not (coords == all_node_coords).all(1).any(0):
+                ground_truth_coords.append(coords)
+                utility.append(0)
+                guidepost.append(0)
+
+        ground_truth_coords = np.array(ground_truth_coords).reshape(-1, 2)
+        utility = np.array(utility)
+        guidepost = np.array(guidepost)
+        n_nodes = ground_truth_coords.shape[0]
+        ground_truth_adjacent_matrix = np.ones((n_nodes, n_nodes)).astype(int)
+        node_coords_to_check = ground_truth_coords[:, 0] + ground_truth_coords[:, 1] * 1j
+
+        for i, coords in enumerate(ground_truth_coords):
+            node = self.ground_truth_nodes_dict.find((coords[0], coords[1])).data
+            for neighbor in node.neighbor_list:
+                index = np.argwhere(node_coords_to_check == neighbor[0] + neighbor[1] * 1j)
+                if index or index == [[0]]:
+                    index = index[0][0]
+                    ground_truth_adjacent_matrix[i, index] = 0
+
+        return ground_truth_coords, utility, guidepost, ground_truth_adjacent_matrix
 
     def h(self, coords_1, coords_2):
         # h = abs(coords_1[0] - coords_2[0]) + abs(coords_1[1] - coords_2[1])

@@ -43,10 +43,13 @@ class Agent:
         self.local_node_coords, self.utility, self.guidepost, self.occupancy = None, None, None, None
         self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices = None, None, None
 
+        # ground truth graph (only for critic)
+        self.gt_node_coords, self.gt_utility, self.gt_guidepost, self.gt_adjacent_matrix = None, None, None, None
+
         self.travel_dist = 0
 
         self.episode_buffer = []
-        for i in range(18):
+        for i in range(24):
             self.episode_buffer.append([])
 
         if self.plot:
@@ -93,6 +96,8 @@ class Agent:
     def update_planning_state(self, robot_locations):
         self.local_node_coords, self.utility, self.guidepost, self.occupancy, self.local_adjacent_matrix, self.current_local_index, self.local_neighbor_indices = \
             self.local_node_manager.get_all_node_graph(self.location, robot_locations)
+        self.gt_node_coords, self.gt_utility, self.gt_guidepost, self.gt_adjacent_matrix= \
+            self.local_node_manager.get_all_node_true_graph(self.location, robot_locations, self.local_node_coords)
 
     def get_local_observation(self):
         local_node_coords = self.local_node_coords
@@ -142,6 +147,40 @@ class Agent:
         local_edge_padding_mask = padding(local_edge_padding_mask)
 
         return [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask]
+
+    def get_state(self):
+        global_node_coords = self.gt_node_coords
+        n_global_node = global_node_coords.shape[0]
+        global_node_utility = self.gt_utility.reshape(-1, 1)
+        global_node_guidepost = self.gt_guidepost.reshape(-1, 1)
+        node_occupancy = self.occupancy.reshape(-1, 1)
+        node_occupancy = np.pad(node_occupancy, ((0, n_global_node - node_occupancy.shape[0]), (0, 0)), mode='constant', constant_values=0)
+        global_edge_mask = self.gt_adjacent_matrix
+
+        current_global_node_coords = global_node_coords[self.current_local_index]
+        global_node_coords = np.concatenate((global_node_coords[:, 0].reshape(-1, 1) - current_global_node_coords[0],
+                                             global_node_coords[:, 1].reshape(-1, 1) - current_global_node_coords[1]),
+                                            axis=-1) / LOCAL_MAP_SIZE
+        global_node_utility = global_node_utility / 30
+        global_node_inputs = np.concatenate(
+            (global_node_coords, global_node_utility, global_node_guidepost, node_occupancy), axis=1)
+        global_node_inputs = torch.FloatTensor(global_node_inputs).unsqueeze(0).to(self.device)
+
+        padding = torch.nn.ZeroPad2d((0, 0, 0, LOCAL_NODE_PADDING_SIZE - n_global_node))
+        global_node_inputs = padding(global_node_inputs)
+
+        global_node_padding_mask = torch.zeros((1, 1, n_global_node), dtype=torch.int16).to(self.device)
+        global_node_padding = torch.ones((1, 1, LOCAL_NODE_PADDING_SIZE - n_global_node), dtype=torch.int16).to(
+            self.device)
+        global_node_padding_mask = torch.cat((global_node_padding_mask, global_node_padding), dim=-1)
+
+        global_edge_mask = torch.tensor(global_edge_mask).unsqueeze(0).to(self.device)
+
+        padding = torch.nn.ConstantPad2d(
+            (0, LOCAL_NODE_PADDING_SIZE - n_global_node, 0, LOCAL_NODE_PADDING_SIZE - n_global_node), 1)
+        global_edge_mask = padding(global_edge_mask)
+
+        return [global_node_inputs, global_node_padding_mask, global_edge_mask]
 
     def select_next_waypoint(self, local_observation):
         _, _, _, _, current_local_edge, _ = local_observation
@@ -250,10 +289,10 @@ class Agent:
         self.episode_buffer[6] += action_index.reshape(1, 1, 1)
 
     def save_reward(self, reward):
-        self.episode_buffer[7] += torch.FloatTensor([reward]).reshape(1, 1, 1).to(self.device)
+        self.episode_buffer[7] += torch.FloatTensor(reward).reshape(1, 1, 1).to(self.device)
 
     def save_done(self, done):
-        self.episode_buffer[8] += torch.tensor([int(done)]).reshape(1, 1, 1).to(self.device)
+        self.episode_buffer[8] += torch.tensor(int(done)).reshape(1, 1, 1).to(self.device)
 
     def save_all_indices(self, all_agent_curr_indices):
         self.episode_buffer[15] += torch.tensor(all_agent_curr_indices).reshape(1, -1, 1).to(self.device)
@@ -277,3 +316,19 @@ class Agent:
         self.episode_buffer[16] += torch.tensor(next_node_index_list).reshape(1, -1, 1).to(self.device)
         self.episode_buffer[17] = copy.deepcopy(self.episode_buffer[16])[1:]
         self.episode_buffer[17] += copy.deepcopy(self.episode_buffer[16])[:-1]
+
+    def save_state(self, state):
+        global_node_inputs, global_node_padding_mask, global_edge_mask = state
+        self.episode_buffer[18] += global_node_inputs
+        self.episode_buffer[19] += global_node_padding_mask.bool()
+        self.episode_buffer[20] += global_edge_mask.bool()
+
+    def save_next_state(self, state, next_node_index_list):
+        self.episode_buffer[21] = copy.deepcopy(self.episode_buffer[18])[1:]
+        self.episode_buffer[22] = copy.deepcopy(self.episode_buffer[19])[1:]
+        self.episode_buffer[23] = copy.deepcopy(self.episode_buffer[20])[1:]
+
+        global_node_inputs, global_node_padding_mask, global_edge_mask = state
+        self.episode_buffer[21] += global_node_inputs
+        self.episode_buffer[22] += global_node_padding_mask.bool()
+        self.episode_buffer[23] += global_edge_mask.bool()

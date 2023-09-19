@@ -114,7 +114,7 @@ def main():
 
     # initialize training replay buffer
     experience_buffer = []
-    for i in range(18):
+    for i in range(24):
         experience_buffer.append([])
 
     # collect data from worker and do training
@@ -179,16 +179,27 @@ def main():
                     all_agent_indices = torch.stack(rollouts[15]).to(device)
                     all_agent_next_indices = torch.stack(rollouts[16]).to(device)
                     next_all_agent_next_indices = torch.stack(rollouts[17]).to(device)
+                    global_node_inputs = torch.stack(rollouts[18]).to(device)
+                    global_node_padding_mask = torch.stack(rollouts[19]).to(device)
+                    global_edge_mask = torch.stack(rollouts[20]).to(device)
+                    next_global_node_inputs = torch.stack(rollouts[21]).to(device)
+                    next_global_node_padding_mask = torch.stack(rollouts[22]).to(device)
+                    next_global_edge_mask = torch.stack(rollouts[23]).to(device)
 
                     observation = [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index,
                                    current_local_edge, local_edge_padding_mask]
                     next_observation = [next_local_node_inputs, next_local_node_padding_mask, next_local_edge_mask,
                                         next_current_local_index, next_current_local_edge, next_local_edge_padding_mask]
+                    state = [global_node_inputs, global_node_padding_mask, global_edge_mask, current_local_index,
+                             current_local_edge, local_edge_padding_mask, all_agent_indices, all_agent_next_indices]
+                    next_state = [next_global_node_inputs, next_global_node_padding_mask, next_global_edge_mask,
+                                  next_current_local_index, next_current_local_edge, next_local_edge_padding_mask,
+                                  all_agent_next_indices, next_all_agent_next_indices]
 
                     # SAC
                     with torch.no_grad():
-                        q_values1 = dp_q_net1(*observation, all_agent_indices, all_agent_next_indices)
-                        q_values2 = dp_q_net2(*observation, all_agent_indices, all_agent_next_indices)
+                        q_values1 = dp_q_net1(*state)
+                        q_values2 = dp_q_net2(*state)
                         q_values = torch.min(q_values1, q_values2)
 
                     logp = dp_policy(*observation)
@@ -204,8 +215,8 @@ def main():
 
                     with torch.no_grad():
                         next_logp = dp_policy(*next_observation)
-                        next_q_values1 = dp_target_q_net1(*next_observation, all_agent_next_indices, next_all_agent_next_indices)
-                        next_q_values2 = dp_target_q_net2(*next_observation, all_agent_next_indices, next_all_agent_next_indices)
+                        next_q_values1 = dp_target_q_net1(*next_state)
+                        next_q_values2 = dp_target_q_net2(*next_state)
                         next_q_values = torch.min(next_q_values1, next_q_values2)
                         value_prime = torch.sum(
                             next_logp.unsqueeze(2).exp() * (next_q_values - log_alpha.exp() * next_logp.unsqueeze(2)),
@@ -214,7 +225,7 @@ def main():
 
                     mse_loss = nn.MSELoss()
 
-                    q_values1 = dp_q_net1(*observation, all_agent_indices, all_agent_next_indices)
+                    q_values1 = dp_q_net1(*state)
                     q1 = torch.gather(q_values1, 1, action)
                     q1_loss = mse_loss(q1, target_q_batch.detach()).mean()
 
@@ -224,7 +235,7 @@ def main():
                                                                  norm_type=2)
                     global_q_net1_optimizer.step()
 
-                    q_values2 = dp_q_net2(*observation, all_agent_indices, all_agent_next_indices)
+                    q_values2 = dp_q_net2(*state)
                     q2 = torch.gather(q_values2, 1, action)
                     q2_loss = mse_loss(q2, target_q_batch.detach()).mean()
 

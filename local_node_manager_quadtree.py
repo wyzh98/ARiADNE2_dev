@@ -118,25 +118,29 @@ class Local_node_manager:
                 occupancy[index] = 1
         return all_node_coords, utility, guidepost, occupancy, adjacent_matrix, current_index, neighbor_indices
 
-    def get_all_node_true_graph(self, robot_location, robot_locations, all_node_coords):
+    def get_all_node_true_graph(self, all_node_coords, guidepost):
         ground_truth_coords = copy.deepcopy(all_node_coords).tolist()
+        guidepost = copy.deepcopy(guidepost).tolist()
         utility = []
-        guidepost = []
+        explored = []
         for coords in all_node_coords:
             node = self.local_nodes_dict.find((coords[0], coords[1])).data
             utility.append(node.utility)
-            guidepost.append(1)
+            explored.append(1)
 
         for node in self.ground_truth_nodes_dict.__iter__():
             coords = node.data.coords
             if not (coords == all_node_coords).all(1).any(0):
                 ground_truth_coords.append(coords)
-                utility.append(0)
+                utility.append(-10)
                 guidepost.append(0)
+                explored.append(0)
 
         ground_truth_coords = np.array(ground_truth_coords).reshape(-1, 2)
         utility = np.array(utility)
         guidepost = np.array(guidepost)
+        explored = np.array(explored)
+
         n_nodes = ground_truth_coords.shape[0]
         ground_truth_adjacent_matrix = np.ones((n_nodes, n_nodes)).astype(int)
         node_coords_to_check = ground_truth_coords[:, 0] + ground_truth_coords[:, 1] * 1j
@@ -149,7 +153,7 @@ class Local_node_manager:
                     index = index[0][0]
                     ground_truth_adjacent_matrix[i, index] = 0
 
-        return ground_truth_coords, utility, guidepost, ground_truth_adjacent_matrix
+        return ground_truth_coords, utility, guidepost, explored, ground_truth_adjacent_matrix
 
     def h(self, coords_1, coords_2):
         # h = abs(coords_1[0] - coords_2[0]) + abs(coords_1[1] - coords_2[1])

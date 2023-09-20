@@ -44,7 +44,7 @@ class Agent:
         self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices = None, None, None
 
         # ground truth graph (only for critic)
-        self.gt_node_coords, self.gt_utility, self.gt_guidepost, self.gt_adjacent_matrix = None, None, None, None
+        self.gt_node_coords, self.gt_utility, self.gt_guidepost, self.gt_explored, self.gt_adjacent_matrix = None, None, None, None, None
 
         self.travel_dist = 0
 
@@ -96,14 +96,15 @@ class Agent:
     def update_planning_state(self, robot_locations):
         self.local_node_coords, self.utility, self.guidepost, self.occupancy, self.local_adjacent_matrix, self.current_local_index, self.local_neighbor_indices = \
             self.local_node_manager.get_all_node_graph(self.location, robot_locations)
-        self.gt_node_coords, self.gt_utility, self.gt_guidepost, self.gt_adjacent_matrix= \
-            self.local_node_manager.get_all_node_true_graph(self.location, robot_locations, self.local_node_coords)
+        self.gt_node_coords, self.gt_utility, self.gt_guidepost, self.gt_explored, self.gt_adjacent_matrix= \
+            self.local_node_manager.get_all_node_true_graph(self.local_node_coords, self.guidepost)
 
     def get_local_observation(self):
         local_node_coords = self.local_node_coords
         local_node_utility = self.utility.reshape(-1, 1)
         local_node_guidepost = self.guidepost.reshape(-1, 1)
         local_node_occupancy = self.occupancy.reshape(-1, 1)
+        local_node_explored = np.ones_like(local_node_utility)
         current_local_index = self.current_local_index
         local_edge_mask = self.local_adjacent_matrix
         current_local_edge = self.local_neighbor_indices
@@ -114,7 +115,7 @@ class Agent:
                                             local_node_coords[:, 1].reshape(-1, 1) - current_local_node_coords[1]),
                                            axis=-1) / LOCAL_MAP_SIZE
         local_node_utility = local_node_utility / 30
-        local_node_inputs = np.concatenate((local_node_coords, local_node_utility, local_node_guidepost, local_node_occupancy), axis=1)
+        local_node_inputs = np.concatenate((local_node_coords, local_node_utility, local_node_guidepost, local_node_occupancy, local_node_explored), axis=1)
         local_node_inputs = torch.FloatTensor(local_node_inputs).unsqueeze(0).to(self.device)
 
         assert local_node_coords.shape[0] < LOCAL_NODE_PADDING_SIZE
@@ -153,6 +154,7 @@ class Agent:
         n_global_node = global_node_coords.shape[0]
         global_node_utility = self.gt_utility.reshape(-1, 1)
         global_node_guidepost = self.gt_guidepost.reshape(-1, 1)
+        global_node_explored = self.gt_explored.reshape(-1, 1)
         node_occupancy = self.occupancy.reshape(-1, 1)
         node_occupancy = np.pad(node_occupancy, ((0, n_global_node - node_occupancy.shape[0]), (0, 0)), mode='constant', constant_values=0)
         global_edge_mask = self.gt_adjacent_matrix
@@ -163,7 +165,7 @@ class Agent:
                                             axis=-1) / LOCAL_MAP_SIZE
         global_node_utility = global_node_utility / 30
         global_node_inputs = np.concatenate(
-            (global_node_coords, global_node_utility, global_node_guidepost, node_occupancy), axis=1)
+            (global_node_coords, global_node_utility, global_node_guidepost, node_occupancy, global_node_explored), axis=1)
         global_node_inputs = torch.FloatTensor(global_node_inputs).unsqueeze(0).to(self.device)
 
         padding = torch.nn.ZeroPad2d((0, 0, 0, LOCAL_NODE_PADDING_SIZE - n_global_node))

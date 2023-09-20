@@ -15,7 +15,7 @@ if not os.path.exists(gifs_path):
 
 
 class Multi_agent_worker:
-    def __init__(self, meta_agent_id, policy_net, global_step, device='cpu', save_image=False):
+    def __init__(self, meta_agent_id, policy_net, expert_net, global_step, device='cpu', save_image=False):
         self.meta_agent_id = meta_agent_id
         self.global_step = global_step
         self.save_image = save_image
@@ -25,8 +25,8 @@ class Multi_agent_worker:
         self.n_agent = N_AGENTS
         self.local_node_manager = Local_node_manager(plot=self.save_image)
 
-        self.robot_list = [Agent(i, policy_net, self.local_node_manager, self.device, self.save_image) for i in
-                           range(N_AGENTS)]
+        self.robot_list = [Agent(i, policy_net, expert_net, self.local_node_manager, self.device, self.save_image)
+                           for i in range(N_AGENTS)]
 
         self.episode_buffer = []
         self.perf_metrics = dict()

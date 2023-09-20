@@ -11,11 +11,12 @@ from local_node_manager_quadtree import Local_node_manager
 
 
 class Agent:
-    def __init__(self, id, policy_net, local_node_manager, device='cpu', plot=False):
+    def __init__(self, id, policy_net, expert_net, local_node_manager, device='cpu', plot=False):
         self.id = id
         self.device = device
         self.plot = plot
         self.policy_net = policy_net
+        self.expert_net = expert_net
 
         # location and global map
         self.location = None
@@ -52,11 +53,6 @@ class Agent:
         if self.plot:
             self.trajectory_x = []
             self.trajectory_y = []
-
-        self.expert_net = copy.deepcopy(policy_net)
-        checkpoint = torch.load(f'./model/ariadne1_rl_maac/checkpoint.pth')
-        self.expert_net.load_state_dict(checkpoint['policy_model'])
-        self.expert_net.eval()
 
     def update_global_map(self, global_map_info):
         # no need in training because of shallow copy
@@ -259,7 +255,7 @@ class Agent:
         self.episode_buffer[6] += action_index.reshape(1, 1, 1)
 
     def save_reward(self, reward):
-        self.episode_buffer[7] += torch.FloatTensor(reward).reshape(1, 1, 1).to(self.device)
+        self.episode_buffer[7] += torch.FloatTensor([reward]).reshape(1, 1, 1).to(self.device)
 
     def save_done(self, done):
         self.episode_buffer[8] += torch.tensor(int(done)).reshape(1, 1, 1).to(self.device)

@@ -11,6 +11,11 @@ class Runner(object):
         self.device = torch.device('cuda') if USE_GPU else torch.device('cpu')
         self.local_network = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
         self.local_network.to(self.device)
+        # expert policy
+        self.expert_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM).to(self.device)
+        checkpoint = torch.load(f'./model/ariadne1_multi_agent/checkpoint.pth', map_location=self.device)
+        self.expert_net.load_state_dict(checkpoint['policy_model'])
+        self.expert_net.eval()
 
     def get_weights(self):
         return self.local_network.state_dict()
@@ -21,7 +26,7 @@ class Runner(object):
     def do_job(self, episode_number):
         save_img = True if episode_number % SAVE_IMG_GAP == 0 else False
         # save_img = True
-        worker = Multi_agent_worker(self.meta_agent_id, self.local_network, episode_number, device=self.device, save_image=save_img)
+        worker = Multi_agent_worker(self.meta_agent_id, self.local_network, self.expert_net, episode_number, device=self.device, save_image=save_img)
         worker.run_episode()
 
         job_results = worker.episode_buffer

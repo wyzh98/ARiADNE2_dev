@@ -49,7 +49,7 @@ class Agent:
         self.travel_dist = 0
 
         self.episode_buffer = []
-        for i in range(24):
+        for i in range(18):
             self.episode_buffer.append([])
 
         if self.plot:
@@ -316,19 +316,3 @@ class Agent:
         self.episode_buffer[16] += torch.tensor(next_node_index_list).reshape(1, -1, 1).to(self.device)
         self.episode_buffer[17] = copy.deepcopy(self.episode_buffer[16])[1:]
         self.episode_buffer[17] += copy.deepcopy(self.episode_buffer[16])[:-1]
-
-    def save_state(self, state):
-        global_node_inputs, global_node_padding_mask, global_edge_mask = state
-        self.episode_buffer[18] += global_node_inputs
-        self.episode_buffer[19] += global_node_padding_mask.bool()
-        self.episode_buffer[20] += global_edge_mask.bool()
-
-    def save_next_state(self, state, next_node_index_list):
-        self.episode_buffer[21] = copy.deepcopy(self.episode_buffer[18])[1:]
-        self.episode_buffer[22] = copy.deepcopy(self.episode_buffer[19])[1:]
-        self.episode_buffer[23] = copy.deepcopy(self.episode_buffer[20])[1:]
-
-        global_node_inputs, global_node_padding_mask, global_edge_mask = state
-        self.episode_buffer[21] += global_node_inputs
-        self.episode_buffer[22] += global_node_padding_mask.bool()
-        self.episode_buffer[23] += global_edge_mask.bool()

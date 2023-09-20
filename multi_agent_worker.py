@@ -30,7 +30,7 @@ class Multi_agent_worker:
 
         self.episode_buffer = []
         self.perf_metrics = dict()
-        for i in range(24):
+        for i in range(18):
             self.episode_buffer.append([])
 
     def run_episode(self):
@@ -47,10 +47,10 @@ class Multi_agent_worker:
             for robot in self.robot_list:
                 local_observation = robot.get_local_observation()
                 state = robot.get_state()
-                robot.save_observation(local_observation)
-                robot.save_state(state)
+                state += local_observation[3:]
+                robot.save_observation(state)
 
-                next_location, next_node_index, action_index = robot.select_next_waypoint(local_observation)
+                next_location, next_node_index, action_index = robot.select_next_waypoint(state)
                 robot.save_action(action_index)
 
                 node = robot.local_node_manager.local_nodes_dict.find((robot.location[0], robot.location[1]))
@@ -125,8 +125,8 @@ class Multi_agent_worker:
         for robot in self.robot_list:
             local_observation = robot.get_local_observation()
             state = robot.get_state()
-            robot.save_next_observations(local_observation, next_node_index_list)
-            robot.save_next_state(state, next_node_index_list)
+            state += local_observation[3:]
+            robot.save_next_observations(state, next_node_index_list)
             for i in range(len(self.episode_buffer)):
                 self.episode_buffer[i] += robot.episode_buffer[i]
 

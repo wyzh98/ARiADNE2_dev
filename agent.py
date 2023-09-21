@@ -44,7 +44,8 @@ class Agent:
         self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices = None, None, None
 
         # ground truth graph (only for critic)
-        self.gt_node_coords, self.gt_utility, self.gt_guidepost, self.gt_explored, self.gt_adjacent_matrix = None, None, None, None, None
+        self.gt_node_coords, self.gt_utility, self.gt_guidepost, self.gt_explored = None, None, None, None
+        self.gt_adjacent_matrix, self.gt_neighbor_indices = None, None
 
         self.travel_dist = 0
 
@@ -96,8 +97,8 @@ class Agent:
     def update_planning_state(self, robot_locations):
         self.local_node_coords, self.utility, self.guidepost, self.occupancy, self.local_adjacent_matrix, self.current_local_index, self.local_neighbor_indices = \
             self.local_node_manager.get_all_node_graph(self.location, robot_locations)
-        self.gt_node_coords, self.gt_utility, self.gt_guidepost, self.gt_explored, self.gt_adjacent_matrix= \
-            self.local_node_manager.get_all_node_true_graph(self.local_node_coords, self.guidepost)
+        self.gt_node_coords, self.gt_utility, self.gt_guidepost, self.gt_explored, self.gt_adjacent_matrix, self.gt_neighbor_indices = \
+            self.local_node_manager.get_all_node_true_graph(self.local_node_coords, self.guidepost, self.current_local_index)
 
     def get_local_observation(self):
         local_node_coords = self.local_node_coords
@@ -118,7 +119,7 @@ class Agent:
         local_node_inputs = np.concatenate((local_node_coords, local_node_utility, local_node_guidepost, local_node_occupancy, local_node_explored), axis=1)
         local_node_inputs = torch.FloatTensor(local_node_inputs).unsqueeze(0).to(self.device)
 
-        assert local_node_coords.shape[0] < LOCAL_NODE_PADDING_SIZE
+        assert local_node_coords.shape[0] <= LOCAL_NODE_PADDING_SIZE
         padding = torch.nn.ZeroPad2d((0, 0, 0, LOCAL_NODE_PADDING_SIZE - n_local_node))
         local_node_inputs = padding(local_node_inputs)
 
@@ -158,6 +159,10 @@ class Agent:
         node_occupancy = self.occupancy.reshape(-1, 1)
         node_occupancy = np.pad(node_occupancy, ((0, n_global_node - node_occupancy.shape[0]), (0, 0)), mode='constant', constant_values=0)
         global_edge_mask = self.gt_adjacent_matrix
+        current_index = self.current_local_index
+        current_global_edge = self.gt_neighbor_indices
+        if not (self.gt_neighbor_indices == self.local_neighbor_indices).all():
+            print('')
 
         current_global_node_coords = global_node_coords[self.current_local_index]
         global_node_coords = np.concatenate((global_node_coords[:, 0].reshape(-1, 1) - current_global_node_coords[0],
@@ -168,13 +173,15 @@ class Agent:
             (global_node_coords, global_node_utility, global_node_guidepost, node_occupancy, global_node_explored), axis=1)
         global_node_inputs = torch.FloatTensor(global_node_inputs).unsqueeze(0).to(self.device)
 
+        assert global_node_coords.shape[0] <= LOCAL_NODE_PADDING_SIZE
         padding = torch.nn.ZeroPad2d((0, 0, 0, LOCAL_NODE_PADDING_SIZE - n_global_node))
         global_node_inputs = padding(global_node_inputs)
 
         global_node_padding_mask = torch.zeros((1, 1, n_global_node), dtype=torch.int16).to(self.device)
-        global_node_padding = torch.ones((1, 1, LOCAL_NODE_PADDING_SIZE - n_global_node), dtype=torch.int16).to(
-            self.device)
+        global_node_padding = torch.ones((1, 1, LOCAL_NODE_PADDING_SIZE - n_global_node), dtype=torch.int16).to(self.device)
         global_node_padding_mask = torch.cat((global_node_padding_mask, global_node_padding), dim=-1)
+
+        current_index = torch.tensor([current_index]).reshape(1, 1, 1).to(self.device)
 
         global_edge_mask = torch.tensor(global_edge_mask).unsqueeze(0).to(self.device)
 
@@ -182,7 +189,19 @@ class Agent:
             (0, LOCAL_NODE_PADDING_SIZE - n_global_node, 0, LOCAL_NODE_PADDING_SIZE - n_global_node), 1)
         global_edge_mask = padding(global_edge_mask)
 
-        return [global_node_inputs, global_node_padding_mask, global_edge_mask]
+        current_in_edge = np.argwhere(current_global_edge == self.current_local_index)[0][0]
+        current_global_edge = torch.tensor(current_global_edge).unsqueeze(0)
+        k_size = current_global_edge.size()[-1]
+        padding = torch.nn.ConstantPad1d((0, LOCAL_K_SIZE - k_size), 0)
+        current_global_edge = padding(current_global_edge)
+        current_global_edge = current_global_edge.unsqueeze(-1)
+
+        edge_padding_mask = torch.zeros((1, 1, k_size), dtype=torch.int16).to(self.device)
+        edge_padding_mask[0, 0, current_in_edge] = 1
+        padding = torch.nn.ConstantPad1d((0, LOCAL_K_SIZE - k_size), 1)
+        edge_padding_mask = padding(edge_padding_mask)
+
+        return [global_node_inputs, global_node_padding_mask, global_edge_mask, current_index, current_global_edge, edge_padding_mask]
 
     def select_next_waypoint(self, local_observation):
         _, _, _, _, current_local_edge, _ = local_observation

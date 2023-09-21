@@ -118,7 +118,7 @@ class Local_node_manager:
                 occupancy[index] = 1
         return all_node_coords, utility, guidepost, occupancy, adjacent_matrix, current_index, neighbor_indices
 
-    def get_all_node_true_graph(self, all_node_coords, guidepost):
+    def get_all_node_true_graph(self, all_node_coords, guidepost, current_index):
         ground_truth_coords = copy.deepcopy(all_node_coords).tolist()
         guidepost = copy.deepcopy(guidepost).tolist()
         utility = []
@@ -153,7 +153,9 @@ class Local_node_manager:
                     index = index[0][0]
                     ground_truth_adjacent_matrix[i, index] = 0
 
-        return ground_truth_coords, utility, guidepost, explored, ground_truth_adjacent_matrix
+        ground_truth_neighbor_indices = np.argwhere(ground_truth_adjacent_matrix[current_index] == 0).reshape(-1)
+
+        return ground_truth_coords, utility, guidepost, explored, ground_truth_adjacent_matrix, ground_truth_neighbor_indices
 
     def h(self, coords_1, coords_2):
         # h = abs(coords_1[0] - coords_2[0]) + abs(coords_1[1] - coords_2[1])

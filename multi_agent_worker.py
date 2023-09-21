@@ -45,9 +45,7 @@ class Multi_agent_worker:
             dist_list = []
             next_node_index_list = []
             for robot in self.robot_list:
-                local_observation = robot.get_local_observation()
                 state = robot.get_state()
-                state += local_observation[3:]
                 robot.save_observation(state)
 
                 next_location, next_node_index, action_index = robot.select_next_waypoint(state)
@@ -123,9 +121,7 @@ class Multi_agent_worker:
 
         # save episode buffer
         for robot in self.robot_list:
-            local_observation = robot.get_local_observation()
             state = robot.get_state()
-            state += local_observation[3:]
             robot.save_next_observations(state, next_node_index_list)
             for i in range(len(self.episode_buffer)):
                 self.episode_buffer[i] += robot.episode_buffer[i]

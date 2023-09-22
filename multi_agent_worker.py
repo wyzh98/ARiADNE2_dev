@@ -23,7 +23,7 @@ class Multi_agent_worker:
 
         self.env = Env(global_step, plot=self.save_image)
         self.n_agent = N_AGENTS
-        self.local_node_manager = Local_node_manager(plot=self.save_image)
+        self.local_node_manager = Local_node_manager(self.env.ground_truth_coords, self.env.ground_truth_info, plot=self.save_image)
 
         self.robot_list = [Agent(i, policy_net, expert_net, self.local_node_manager, self.device, self.save_image)
                            for i in range(N_AGENTS)]
@@ -47,9 +47,10 @@ class Multi_agent_worker:
             next_expert_location_list = []
             for robot in self.robot_list:
                 local_observation = robot.get_local_observation()
+                state = robot.get_state()
                 robot.save_observation(local_observation)
 
-                next_location, next_node_index, action_index, next_expert_location = robot.select_next_waypoint(local_observation)
+                next_location, next_node_index, action_index, next_expert_location = robot.select_next_waypoint(local_observation, state)
                 robot.save_action(action_index)
 
                 node = robot.local_node_manager.local_nodes_dict.find((robot.location[0], robot.location[1]))

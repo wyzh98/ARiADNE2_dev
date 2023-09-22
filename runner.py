@@ -13,7 +13,7 @@ class Runner(object):
         self.local_network.to(self.device)
         # expert policy
         self.expert_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM).to(self.device)
-        checkpoint = torch.load(f'./model/ariadne1_multi_agent/checkpoint.pth', map_location=self.device)
+        checkpoint = torch.load(f'./model/ariadne1_rl_Coverage/checkpoint.pth', map_location=self.device)
         self.expert_net.load_state_dict(checkpoint['policy_model'])
         self.expert_net.eval()
 

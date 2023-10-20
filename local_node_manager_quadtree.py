@@ -77,7 +77,7 @@ class NodeManager:
             if node is None:
                 node = self.add_node_to_dict(coords)
             node = node.data
-            node.initialize_observable_safe_frontiers(safe_frontiers, extended_safe_zone_info)
+            node.update_observable_safe_frontiers(safe_frontiers, extended_safe_zone_info)
 
     def get_all_node_graph(self, robot_location, robot_locations):
         all_node_coords = []
@@ -280,7 +280,7 @@ class LocalNode:
         self.explored_neighbor_matrix[2, 2] = 1
         self.explored_neighbor_list.append(self.coords)
 
-    def initialize_observable_safe_frontiers(self, safe_frontiers, extended_safe_zone_info):
+    def update_observable_safe_frontiers(self, safe_frontiers, extended_safe_zone_info):
         if not self.safe:
             self.safe_utility = 0
             return None
@@ -297,38 +297,6 @@ class LocalNode:
                     observable_safe_frontiers.append(point)
             self.observable_safe_frontiers = np.array(observable_safe_frontiers)
             self.safe_utility = self.observable_safe_frontiers.shape[0] if self.observable_safe_frontiers.shape[0] > MIN_UTILITY else 0
-
-    def update_observable_safe_frontiers(self, safe_frontiers, extended_safe_zone_info):
-        if not self.safe:
-            self.safe_utility = 0
-            self.observable_safe_frontiers = np.array([])
-            return
-        elif safe_frontiers.shape[0] == 0:
-            self.safe_utility = 0
-            self.observable_safe_frontiers = safe_frontiers
-            return
-        else:
-            safe_frontiers = safe_frontiers.reshape(-1, 2)
-            old_frontier_to_check = self.observable_safe_frontiers[:, 0] + self.observable_safe_frontiers[:, 1] * 1j
-            local_frontiers_to_check = safe_frontiers[:, 0] + safe_frontiers[:, 1] * 1j
-            to_observe_index = np.where(
-                np.isin(old_frontier_to_check, local_frontiers_to_check, assume_unique=True) == True)
-            new_frontier_index = np.where(
-                np.isin(local_frontiers_to_check, old_frontier_to_check, assume_unique=True) == False)
-            self.observable_safe_frontiers = self.observable_safe_frontiers[to_observe_index]
-            new_frontiers = safe_frontiers[new_frontier_index]
-
-            # add new frontiers in the observable frontiers
-            if new_frontiers.shape[0] > 0:
-                dist_list = np.linalg.norm(new_frontiers - self.coords, axis=-1)
-                new_frontiers_in_range = new_frontiers[dist_list < self.utility_range]
-                for point in new_frontiers_in_range:
-                    collision = check_collision(self.coords, point, extended_safe_zone_info)
-                    if not collision:
-                        self.observable_safe_frontiers = np.concatenate((self.observable_safe_frontiers, point.reshape(1, 2)), axis=0)
-            self.safe_utility = self.observable_safe_frontiers.shape[0]
-            if self.safe_utility <= MIN_UTILITY:
-                self.safe_utility = 0
 
     def update_neighbor_explored_nodes(self, extended_local_map_info, nodes_dict, plot_x=None, plot_y=None):
         for i in range(self.explored_neighbor_matrix.shape[0]):

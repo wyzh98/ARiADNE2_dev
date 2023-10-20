@@ -83,21 +83,7 @@ class Multi_agent_worker:
                     selected_locations[id] = selected_location
 
             curr_node_indices = np.array([robot.current_local_index for robot in self.robot_list])
-
-            reward_list = [0] * self.n_agent
-            # for robot in self.robot_list:
-            #     num_dangerous_frontiers = robot.get_num_dangerous_frontiers(selected_locations)
-            #     reward_list[robot.id] += -num_dangerous_frontiers / 100
-            # old_safe_frontier = copy.deepcopy(self.env.safe_zone_frontiers)
-
-            for robot, next_location in zip(self.robot_list, selected_locations):
-                # dist = np.linalg.norm(next_location - robot.location)
-                self.env.step(next_location, robot.id)
-                robot.update_graph(self.env.belief_info, self.env.safe_info, deepcopy(self.env.robot_locations[robot.id]))
-
-            # for robot in self.robot_list:
-            #     num_new_frontiers = robot.get_num_new_safe_frontiers(old_safe_frontier)
-            #     reward_list[robot.id] += num_new_frontiers / 100
+            reward_list = [- np.linalg.norm(selected_locations - self.env.robot_locations, axis=1).max() / 30] * self.n_agent
 
             self.env.decrease_safety(selected_locations)
 
@@ -108,9 +94,9 @@ class Multi_agent_worker:
             if (self.robot_list[0].signal == 0).sum() == 0:  # no unsafe node
                 done = True
 
-            team_reward = self.env.calculate_reward() - 0.3
+            team_reward = self.env.calculate_reward()
 
-            if team_reward + 0.3 > 0:
+            if team_reward > 0:
                 safe_increase_log.append(1)
             else:
                 safe_increase_log.append(0)
@@ -128,8 +114,6 @@ class Multi_agent_worker:
                 self.plot_local_env(i)
 
             if done:
-                if self.save_image:
-                    self.plot_local_env(i + 1)
                 break
 
         # save metrics
@@ -156,8 +140,6 @@ class Multi_agent_worker:
         plt.imshow(self.env.robot_belief, cmap='gray', vmin=-255)
         plt.axis('off')
         color_list = ['r', 'b', 'g', 'y']
-        frontiers = get_safe_zone_frontier(self.env.safe_info, self.env.belief_info)
-        frontiers = get_cell_position_from_coords(frontiers, self.env.belief_info).reshape(-1, 2)
         for robot in self.robot_list:
             c = color_list[robot.id]
             robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
@@ -168,7 +150,15 @@ class Multi_agent_worker:
 
         plt.subplot(1, 2, 1)
         plt.imshow(self.env.robot_belief, cmap='gray')
-        plt.scatter(frontiers[:, 0], frontiers[:, 1], c='g', s=1, zorder=6)
+
+        self.env.classify_safe_frontier_coverage(self.env.robot_locations)
+        covered_safe_frontier_cells = get_cell_position_from_coords(self.env.covered_safe_frontiers, self.env.safe_info).reshape(-1, 2)
+        uncovered_safe_frontier_cells = get_cell_position_from_coords(self.env.uncovered_safe_frontiers, self.env.safe_info).reshape(-1, 2)
+        if covered_safe_frontier_cells.shape[0] != 0:
+            plt.scatter(covered_safe_frontier_cells[:, 0], covered_safe_frontier_cells[:, 1], c='g', s=1, zorder=6)
+        if uncovered_safe_frontier_cells.shape[0] != 0:
+            plt.scatter(uncovered_safe_frontier_cells[:, 0], uncovered_safe_frontier_cells[:, 1], c='r', s=1, zorder=6)
+
         for robot in self.robot_list:
             c = color_list[robot.id]
             if robot.id == 0:
@@ -179,9 +169,10 @@ class Multi_agent_worker:
                 # guidepost = robot.local_node_coords[np.where(robot.guidepost == 1)[0]]
                 # guidepost_cell = get_cell_position_from_coords(guidepost, robot.global_map_info).reshape(-1, 2)
                 # plt.scatter(guidepost_cell[:, 0], guidepost_cell[:, 1], c=c, marker='*', s=10, zorder=7)
-                signal = robot.local_node_coords[np.where(robot.signal == 1)[0]]
-                signal_cell = get_cell_position_from_coords(signal, robot.global_map_info).reshape(-1, 2)
-                plt.scatter(signal_cell[:, 0], signal_cell[:, 1], c='w', marker='.', s=2, zorder=3, alpha=0.5)
+
+                # signal = robot.local_node_coords[np.where(robot.signal == 1)[0]]
+                # signal_cell = get_cell_position_from_coords(signal, robot.global_map_info).reshape(-1, 2)
+                # plt.scatter(signal_cell[:, 0], signal_cell[:, 1], c='w', marker='.', s=2, zorder=3, alpha=0.5)
 
             robot_cell = get_cell_position_from_coords(robot.location, robot.safe_zone_info)
             plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=16, zorder=5)

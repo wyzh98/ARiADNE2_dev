@@ -42,7 +42,7 @@ def collision_check(x0, y0, x1, y1, ground_truth, robot_belief):
     return robot_belief
 
 
-def safety_check(x0, y0, x1, y1, sub_safe_zone, sub_belief):
+def safety_check(x0, y0, x1, y1, sub_safe_zone, sub_belief, sub_intersection):
     x1 = x1.round()
     y1 = y1.round()
     dx, dy = abs(x1 - x0), abs(y1 - y0)
@@ -56,8 +56,12 @@ def safety_check(x0, y0, x1, y1, sub_safe_zone, sub_belief):
     while 0 <= x < sub_safe_zone.shape[1] and 0 <= y < sub_safe_zone.shape[0]:
         k1 = sub_safe_zone.item(y, x)
         k2 = sub_belief.item(y, x)
+        k3 = sub_intersection.item(y, x)
 
         if k2 == 1:
+            break
+
+        if k3 == 255:
             break
 
         if x == x1 and y == y1:
@@ -142,14 +146,14 @@ def coverage_sensor(robot_position, sensor_range, robot_belief, ground_truth):
     return robot_belief
 
 
-def decrease_safety_by_frontier(safety_range, sub_safe_zone, sub_belief):
+def decrease_safety_by_frontier(center, safety_range, sub_safe_zone, sub_belief, sub_intersection=None):
     angle_inc = 0.5 / 180 * np.pi
     angle = 0
-    x0 = safety_range
-    y0 = safety_range
+    x0 = center[0]
+    y0 = center[1]
     while angle < 2 * np.pi:
         x1 = x0 + np.cos(angle) * safety_range
         y1 = y0 + np.sin(angle) * safety_range
-        sub_safe_zone[:, :] = safety_check(x0, y0, x1, y1, sub_safe_zone, sub_belief)
+        sub_safe_zone[:, :] = safety_check(x0, y0, x1, y1, sub_safe_zone, sub_belief, sub_intersection)
         angle += angle_inc
     return sub_safe_zone

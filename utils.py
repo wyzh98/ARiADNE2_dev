@@ -209,7 +209,7 @@ def get_partial_map_from_center(original_map_info, center_coords, partial_map_si
     return partial_map_info
 
 
-def check_collision(start, end, map_info):
+def check_collision(start, end, map_info, max_collision=1):
     # Bresenham line algorithm checking
     collision = False
 
@@ -229,19 +229,17 @@ def check_collision(start, end, map_info):
     dx *= 2
     dy *= 2
 
+    collision_flag = 0
+
     while 0 <= x < map.shape[1] and 0 <= y < map.shape[0]:
         k = map.item(int(y), int(x))
         if x == x1 and y == y1:
             break
-        if k == 0:
-            collision = True
-            break
-        if k == 1:
-            collision = True
-            break
-        if k == 127:
-            collision = True
-            break
+        if k in [0, 1, 127]:
+            collision_flag += 1
+            if collision_flag >= max_collision:
+                collision = True
+                break
         if error > 0:
             x += x_inc
             error -= dy

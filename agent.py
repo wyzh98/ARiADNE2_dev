@@ -248,35 +248,6 @@ class Agent:
 
         return local_map_info
 
-    def get_num_dangerous_frontiers(self, robot_locations):
-        num_dangerous_frontiers = 0
-        if self.safe_frontier.shape[0] != 0:
-            for frontier in self.safe_frontier:
-                if np.linalg.norm(frontier - self.location) <= SENSOR_RANGE:
-                    dangerous = self.check_frontier_danger(frontier, robot_locations)
-                    if dangerous:
-                        num_dangerous_frontiers += 1
-        return num_dangerous_frontiers
-
-    def check_frontier_danger(self, frontier, robot_locations):
-        for location in robot_locations:
-            if np.linalg.norm(location - frontier) <= SENSOR_RANGE and not check_collision(location, frontier, self.global_map_info):
-                return False
-        return True
-
-    def get_num_new_safe_frontiers(self, old_safe_frontier):
-        old_safe_frontier_to_check = old_safe_frontier[:, 0] + old_safe_frontier[:, 1] * 1j
-        safe_frontier_to_check = self.safe_frontier[:, 0] + self.safe_frontier[:, 1] * 1j
-        new_safe_frontiers = np.setdiff1d(safe_frontier_to_check, old_safe_frontier_to_check)
-
-        location = self.location[0] + self.location[1] * 1j
-        dist_to_new_safe_frontiers = np.abs(new_safe_frontiers - location)
-        num_new_safe_frontiers = 0
-        for frontier, dist in zip(new_safe_frontiers, dist_to_new_safe_frontiers):
-            if dist <= 1.01 * SENSOR_RANGE and check_collision(np.array([frontier.real, frontier.imag]), self.location, self.global_map_info):
-                num_new_safe_frontiers += 1
-        return num_new_safe_frontiers
-
     def save_observation(self, local_observation):
         local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
         self.episode_buffer[0] += local_node_inputs

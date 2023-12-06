@@ -28,7 +28,7 @@ BATCH_SIZE = 256
 LR = 1e-5
 GAMMA = 1
 
-LOCAL_NODE_INPUT_DIM = 6
+LOCAL_NODE_INPUT_DIM = 7
 EMBEDDING_DIM = 128
 
 LOCAL_K_SIZE = 25  # the number of neighboring nodes

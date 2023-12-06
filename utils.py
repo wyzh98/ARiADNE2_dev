@@ -75,7 +75,7 @@ def get_local_node_coords(location, local_map_info, connected=True):
     return nodes, free_connected_map
 
 
-def get_frontier_in_map(map_info):
+def get_explore_frontier(map_info):
     map_info = copy.deepcopy(map_info)
     x_len = map_info.map.shape[1]
     y_len = map_info.map.shape[0]
@@ -103,6 +103,7 @@ def get_frontier_in_map(map_info):
     else:
         frontier_coords = frontier_cell
     return frontier_coords
+
 
 def get_safe_zone_frontier(safe_info, map_info):
     safe_info = copy.deepcopy(safe_info)

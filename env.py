@@ -17,33 +17,36 @@ class Env:
         self.plot = plot
         self.ground_truth, initial_cell = self.import_ground_truth(episode_index)
         self.cell_size = CELL_SIZE  # meter
-
-        self.robot_belief = copy.deepcopy(self.ground_truth)  # full knowledge of the environment
-        self.belief_origin_x = -np.round(initial_cell[0] * self.cell_size, 1)   # meter
-        self.belief_origin_y = -np.round(initial_cell[1] * self.cell_size, 1)  # meter
-        self.belief_info = Map_info(self.robot_belief, self.belief_origin_x, self.belief_origin_y, self.cell_size)
-
         self.sensor_range = SENSOR_RANGE  # meter
         self.safety_range = SAFETY_RANGE  # meter
+        self.belief_origin_x = -np.round(initial_cell[0] * self.cell_size, 1)  # meter
+        self.belief_origin_y = -np.round(initial_cell[1] * self.cell_size, 1)  # meter
+
         self.explored_rate = 0
         self.safe_rate = 0
         self.done = False
 
-        self.safe_zone = np.zeros_like(self.ground_truth)
-        self.safe_info = Map_info(self.safe_zone, self.belief_origin_x, self.belief_origin_y, self.cell_size)
-        self.update_safe_zone(initial_cell)
-        safe, _ = get_local_node_coords(np.array([0.0, 0.0]), self.safe_info)
-        choice = np.random.choice(safe.shape[0], N_AGENTS, replace=False)
+        self.robot_belief = np.ones_like(self.ground_truth) * 127
+        self.update_robot_belief(initial_cell)
+        self.belief_info = Map_info(self.robot_belief, self.belief_origin_x, self.belief_origin_y, self.cell_size)
 
-        self.free_locations, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
-        start_loc = safe[choice]
+        self.safe_zone = np.zeros_like(self.ground_truth)
+        self.update_safe_zone(initial_cell)
+        self.safe_info = Map_info(self.safe_zone, self.belief_origin_x, self.belief_origin_y, self.cell_size)
+
+        free, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
+        choice = np.random.choice(free.shape[0], N_AGENTS, replace=False)
+        start_loc = free[choice]
         self.robot_locations = np.array(start_loc)
 
         robot_cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
         for robot_cell in robot_cells:
+            self.update_robot_belief(robot_cell)
+        for robot_cell in robot_cells:
             self.update_safe_zone(robot_cell)
 
         self.old_safe_zone = deepcopy(self.safe_zone)
+        self.explore_frontiers = get_explore_frontier(self.belief_info)
         self.safe_zone_frontiers = get_safe_zone_frontier(self.safe_info, self.belief_info)
         self.covered_safe_frontiers = deepcopy(self.safe_zone_frontiers)
         self.uncovered_safe_frontiers = []
@@ -74,12 +77,10 @@ class Env:
         return ground_truth, robot_cell
 
     def update_robot_belief(self, robot_cell):
-        self.robot_belief = exploration_sensor(robot_cell, round(self.sensor_range / self.cell_size), self.robot_belief,
-                                               self.ground_truth)
+        self.robot_belief = exploration_sensor(robot_cell, round(self.sensor_range / self.cell_size), self.robot_belief, self.ground_truth)
 
     def update_safe_zone(self, robot_cell):
-        self.safe_zone = coverage_sensor(robot_cell, round(self.sensor_range / self.cell_size), self.safe_zone,
-                                         self.ground_truth)
+        self.safe_zone = coverage_sensor(robot_cell, round(self.sensor_range / self.cell_size), self.safe_zone, self.ground_truth)
 
     def get_intersect_area(self, locations_togo):
         robot_cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
@@ -166,8 +167,10 @@ class Env:
         return reward
 
     def check_done(self):
-        if np.sum(self.ground_truth == 255) - np.sum(self.safe_zone == 255) <= 250:
+        assert self.explored_rate >= self.safe_rate
+        if self.explored_rate > 0.999 and self.safe_rate >= 0.999:
             self.done = True
+        return self.done
 
     def evaluate_exploration_rate(self):
         self.explored_rate = np.sum(self.robot_belief == 255) / np.sum(self.ground_truth == 255)
@@ -178,6 +181,9 @@ class Env:
     def step(self, next_waypoint, agent_id):
         next_cell = get_cell_position_from_coords(next_waypoint, self.belief_info)
         self.robot_locations[agent_id] = next_waypoint
+        self.update_robot_belief(next_cell)
+        self.explore_frontiers = get_explore_frontier(self.belief_info)
         self.update_safe_zone(next_cell)
         self.safe_zone_frontiers = get_safe_zone_frontier(self.safe_info, self.belief_info)
+        self.evaluate_exploration_rate()
         self.evaluate_safe_zone_rate()

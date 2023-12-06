@@ -36,13 +36,14 @@ class Agent:
         self.extended_local_map_info = None
 
         # local frontiers
+        self.explore_frontier = None
         self.safe_frontier = None
 
         # local node managers
         self.node_manager = node_manager
 
         # local graph
-        self.local_node_coords, self.utility, self.guidepost, self.signal, self.occupancy = None, None, None, None, None
+        self.local_node_coords, self.explore_utility, self.safe_utility, self.guidepost, self.signal, self.occupancy = None, None, None, None, None, None
         self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices = None, None, None
 
         self.travel_dist = 0
@@ -84,28 +85,35 @@ class Agent:
             self.trajectory_x.append(location[0])
             self.trajectory_y.append(location[1])
 
+    def update_explore_frontiers(self):
+        self.explore_frontier = get_explore_frontier(self.extended_local_map_info)
+
     def update_safe_frontiers(self):
         self.safe_frontier = get_safe_zone_frontier(self.extended_local_safe_zone_info, self.extended_local_map_info)
 
-    def update_graph(self, map_info, safe_zone_info, location):
+    def update_graph(self, map_info, location):
         self.update_global_map(map_info)
-        self.update_global_safe_zone(safe_zone_info)
         self.update_location(location)
         self.update_local_map()
+        self.update_explore_frontiers()
+        self.node_manager.update_local_explore_graph(self.location, self.explore_frontier, self.local_map_info,
+                                                     self.extended_local_map_info)
+
+    def update_safe_graph(self, safe_zone_info):
+        self.update_global_safe_zone(safe_zone_info)
         self.update_local_safe_zone()
         self.update_safe_frontiers()
-        self.node_manager.update_local_explore_graph(self.location, np.array([]), self.local_map_info,
-                                                     self.extended_local_map_info)
         self.node_manager.update_local_safe_graph(self.location, self.safe_frontier, self.local_safe_zone_info,
                                                   self.extended_local_safe_zone_info, self.extended_local_map_info)
 
     def update_planning_state(self, robot_locations):
-        self.local_node_coords, self.utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix, self.current_local_index, \
-            self.local_neighbor_indices = self.node_manager.get_all_node_graph(self.location, robot_locations)
+        (self.local_node_coords, self.explore_utility, self.safe_utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix,
+         self.current_local_index, self.local_neighbor_indices) = self.node_manager.get_all_node_graph(self.location, robot_locations)
 
     def get_local_observation(self):
         local_node_coords = self.local_node_coords
-        local_node_utility = self.utility.reshape(-1, 1)
+        local_node_explore_utility = self.explore_utility.reshape(-1, 1)
+        local_node_safe_utility = self.safe_utility.reshape(-1, 1)
         local_node_guidepost = self.guidepost.reshape(-1, 1)
         local_node_occupancy = self.occupancy.reshape(-1, 1)
         local_node_signal = self.signal.reshape(-1, 1)
@@ -118,9 +126,10 @@ class Agent:
         local_node_coords = np.concatenate((local_node_coords[:, 0].reshape(-1, 1) - current_local_node_coords[0],
                                             local_node_coords[:, 1].reshape(-1, 1) - current_local_node_coords[1]),
                                            axis=-1) / LOCAL_MAP_SIZE
-        local_node_utility = local_node_utility / 30
-        local_node_inputs = np.concatenate((local_node_coords, local_node_utility, local_node_guidepost,
-                                            local_node_signal, local_node_occupancy), axis=1)
+        local_node_explore_utility = local_node_explore_utility / 30
+        local_node_safe_utility = local_node_safe_utility / 30
+        local_node_inputs = np.concatenate((local_node_coords, local_node_explore_utility, local_node_safe_utility,
+                                            local_node_guidepost, local_node_signal, local_node_occupancy), axis=1)
         local_node_inputs = torch.FloatTensor(local_node_inputs).unsqueeze(0).to(self.device)
 
         assert local_node_coords.shape[0] < LOCAL_NODE_PADDING_SIZE, print(local_node_coords.shape[0])

@@ -7,47 +7,39 @@ import quads
 
 
 class NodeManager:
-    def __init__(self, free=None, plot=False):
+    def __init__(self, plot=False):
         self.local_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
         self.plot = plot
-        if free is not None:
-            self.add_free_nodes(free)
         if self.plot:
             self.x = []
             self.y = []
-
-    def add_free_nodes(self, free):
-        for coords in free:
-            key = (coords[0], coords[1])
-            node = LocalNode(coords)
-            self.local_nodes_dict.insert(point=key, data=node)
 
     def check_node_exist_in_dict(self, coords):
         key = (coords[0], coords[1])
         exist = self.local_nodes_dict.find(key)
         return exist
 
-    def add_node_to_dict(self, coords):
+    def add_node_to_dict(self, coords, local_frontiers, extended_local_map_info):
         key = (coords[0], coords[1])
-        node = LocalNode(coords)
+        node = LocalNode(coords, local_frontiers, extended_local_map_info)
         self.local_nodes_dict.insert(point=key, data=node)
         return self.check_node_exist_in_dict(coords)
 
     def update_local_explore_graph(self, robot_location, local_frontiers, local_map_info, extended_local_map_info):
         extended_local_node_coords, _ = get_local_node_coords(robot_location, extended_local_map_info)
-        # for coords in extended_local_node_coords:
-        #     node = self.check_node_exist_in_dict(coords)
-        #     if node is not None:
-        #         node = node.data
-        #         if (node.safe_utility != 0) and (np.linalg.norm(node.coords - robot_location) <= 2 * SENSOR_RANGE):
-        #             pass  # TODO: update exploration frontier
+        for coords in extended_local_node_coords:
+            node = self.check_node_exist_in_dict(coords)
+            if node is not None:
+                node = node.data
+                if (node.explore_utility > 0) and (np.linalg.norm(node.coords - robot_location) <= 2 * SENSOR_RANGE):
+                    node.update_observable_explore_frontiers(local_frontiers, extended_local_map_info)
 
         local_node_coords, _ = get_local_node_coords(robot_location, local_map_info)
 
         for coords in local_node_coords:
             node = self.check_node_exist_in_dict(coords)
             if node is None:
-                node = self.add_node_to_dict(coords)
+                self.add_node_to_dict(coords, local_frontiers, extended_local_map_info)
 
         for coords in local_node_coords:
             plot_x = self.x if self.plot else None
@@ -65,17 +57,16 @@ class NodeManager:
                 node = node.data
                 if np.any(np.all(coords == extended_safe_node_coords, axis=1)):
                     node.set_safe()
-                    if (node.safe_utility != 0) and (np.linalg.norm(node.coords - robot_location) <= 2 * SENSOR_RANGE):
+                    if node.safe_utility > 0:  # To check
                         node.update_observable_safe_frontiers(safe_frontiers, extended_safe_zone_info)
                 else:
                     node.set_unsafe()
 
-        local_node_coords, _ = get_local_node_coords(robot_location, local_safe_zone_info, connected=False)
+        safe_node_coords, _ = get_local_node_coords(robot_location, local_safe_zone_info, connected=False)
 
-        for coords in local_node_coords:
+        for coords in safe_node_coords:
             node = self.check_node_exist_in_dict(coords)
-            if node is None:
-                node = self.add_node_to_dict(coords)
+            assert node is not None, "Node should be added in exploration graph first"
             node = node.data
             node.update_observable_safe_frontiers(safe_frontiers, extended_safe_zone_info)
 
@@ -84,7 +75,9 @@ class NodeManager:
         for node in self.local_nodes_dict.__iter__():
             all_node_coords.append(node.data.coords)
         all_node_coords = np.array(all_node_coords).reshape(-1, 2)
-        utility = []
+
+        explore_utility = []
+        safe_utility = []
         signal = []
 
         n_nodes = all_node_coords.shape[0]
@@ -92,7 +85,8 @@ class NodeManager:
         local_node_coords_to_check = all_node_coords[:, 0] + all_node_coords[:, 1] * 1j
         for i, coords in enumerate(all_node_coords):
             node = self.local_nodes_dict.find((coords[0], coords[1])).data
-            utility.append(node.safe_utility)
+            explore_utility.append(node.explore_utility)
+            safe_utility.append(node.safe_utility)
             signal.append(node.safe)
             for neighbor in node.explored_neighbor_list:
                 index = np.argwhere(local_node_coords_to_check == neighbor[0] + neighbor[1] * 1j)
@@ -100,10 +94,11 @@ class NodeManager:
                     index = index[0][0]
                     adjacent_matrix[i, index] = 0
 
-        utility = np.array(utility)
+        explore_utility = np.array(explore_utility)
+        safe_utility = np.array(safe_utility)
         signal = np.array(signal)
 
-        indices = np.argwhere(utility > 0).reshape(-1)
+        indices = np.argwhere(explore_utility > 0).reshape(-1)
         utility_node_coords = all_node_coords[indices]
         dist_dict, prev_dict = self.Dijkstra(robot_location)
         nearest_utility_coords = robot_location
@@ -116,7 +111,7 @@ class NodeManager:
                     nearest_utility_coords = coords
                 # print(nearest_dist, coords, nearest_utility_coords, robot_location)
         path_coords, dist = self.a_star(robot_location, nearest_utility_coords)
-        guidepost = np.zeros_like(utility)
+        guidepost = np.zeros_like(explore_utility)
         for coords in path_coords:
             if coords[0] != robot_location[0] or coords[1] != robot_location[1]:
                 index = np.argwhere(all_node_coords[:, 0] + all_node_coords[:, 1] * 1j == coords[0] + coords[1] * 1j)[0]
@@ -135,7 +130,7 @@ class NodeManager:
             else:
                 occupancy[index] = 1
         assert sum(occupancy) == N_AGENTS-2, print(robot_locations)
-        return all_node_coords, utility, guidepost, signal, occupancy, adjacent_matrix, current_index, neighbor_indices
+        return all_node_coords, explore_utility, safe_utility, guidepost, signal, occupancy, adjacent_matrix, current_index, neighbor_indices
 
     def h(self, coords_1, coords_2):
         # h = abs(coords_1[0] - coords_2[0]) + abs(coords_1[1] - coords_2[1])
@@ -266,11 +261,12 @@ class NodeManager:
 
 
 class LocalNode:
-    def __init__(self, coords):
+    def __init__(self, coords, local_frontiers, extended_local_map_info):
         self.coords = coords
         self.utility_range = UTILITY_RANGE
-        self.observable_explore_frontiers = None
+        self.observable_explore_frontiers = self.init_observable_explore_frontiers(local_frontiers, extended_local_map_info)
         self.observable_safe_frontiers = None
+        self.explore_utility = self.observable_explore_frontiers.shape[0] if self.observable_explore_frontiers.shape[0] > MIN_UTILITY else 0
         self.safe_utility = 0
         self.visited = 0
         self.safe = 0
@@ -279,6 +275,46 @@ class LocalNode:
         self.explored_neighbor_list = []
         self.explored_neighbor_matrix[2, 2] = 1
         self.explored_neighbor_list.append(self.coords)
+
+    def init_observable_explore_frontiers(self, local_frontiers, extended_local_map_info):
+        if local_frontiers.shape[0] == 0:
+            self.explore_utility = 0
+            return local_frontiers
+        else:
+            observable_explore_frontiers = []
+            dist_list = np.linalg.norm(local_frontiers - self.coords, axis=-1)
+            frontiers_in_range = local_frontiers[dist_list < self.utility_range]
+            for point in frontiers_in_range:
+                collision = check_collision(self.coords, point, extended_local_map_info)
+                if not collision:
+                    observable_explore_frontiers.append(point)
+            observable_explore_frontiers = np.array(observable_explore_frontiers)
+            return observable_explore_frontiers
+
+    def update_observable_explore_frontiers(self, local_frontiers, extended_local_map_info):
+        if local_frontiers.shape[0] == 0:
+            self.explore_utility = 0
+            self.observable_explore_frontiers = local_frontiers
+            return
+        local_frontiers = local_frontiers.reshape(-1, 2)
+        old_frontier_to_check = self.observable_explore_frontiers[:, 0] + self.observable_explore_frontiers[:, 1] * 1j
+        local_frontiers_to_check = local_frontiers[:, 0] + local_frontiers[:, 1] * 1j
+        to_observe_index = np.where(
+            np.isin(old_frontier_to_check, local_frontiers_to_check, assume_unique=True) == True)
+        new_frontier_index = np.where(
+            np.isin(local_frontiers_to_check, old_frontier_to_check, assume_unique=True) == False)
+        self.observable_explore_frontiers = self.observable_explore_frontiers[to_observe_index]
+        new_frontiers = local_frontiers[new_frontier_index]
+
+        # add new frontiers in the observable frontiers
+        if new_frontiers.shape[0] > 0:
+            dist_list = np.linalg.norm(new_frontiers - self.coords, axis=-1)
+            new_frontiers_in_range = new_frontiers[dist_list < self.utility_range]
+            for point in new_frontiers_in_range:
+                collision = check_collision(self.coords, point, extended_local_map_info)
+                if not collision:
+                    self.observable_explore_frontiers = np.concatenate((self.observable_explore_frontiers, point.reshape(1, 2)), axis=0)
+        self.explore_utility = self.observable_explore_frontiers.shape[0] if self.observable_explore_frontiers.shape[0] > MIN_UTILITY else 0
 
     def update_observable_safe_frontiers(self, safe_frontiers, extended_safe_zone_info):
         if not self.safe:
@@ -345,5 +381,5 @@ class LocalNode:
 
     def set_visited(self):
         self.visited = 1
-        # self.observable_safe_frontiers = np.array([])
-        # self.safe_utility = 0
+        self.observable_explore_frontiers = np.array([])
+        self.explore_utility = 0

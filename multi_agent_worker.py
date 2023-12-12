@@ -81,7 +81,7 @@ class Multi_agent_worker:
                     selected_locations[id] = selected_location
 
             curr_node_indices = np.array([robot.current_local_index for robot in self.robot_list])
-            reward_list = [- np.linalg.norm(selected_locations - self.env.robot_locations, axis=1).max() / 30] * self.n_agent
+            reward_list = [- np.max(dist_list) / 30] * self.n_agent
 
             self.env.decrease_safety(selected_locations)
 
@@ -199,7 +199,7 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
-    ckp = torch.load('model/checkpoint.pth', map_location='cpu')
-    policy_net.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
+    # ckp = torch.load('model/checkpoint.pth', map_location='cpu')
+    # policy_net.load_state_dict(ckp['policy_model'])
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
     worker.run_episode()

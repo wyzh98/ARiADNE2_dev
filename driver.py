@@ -279,7 +279,7 @@ def main():
                 global_target_q_net2.eval()
 
             # save the model
-            if curr_episode % 32 == 0:
+            if curr_episode % 100 == 0:
                 print('Saving model', end='\n')
                 checkpoint = {"policy_model": global_policy_net.state_dict(),
                               "q_net1_model": global_q_net1.state_dict(),

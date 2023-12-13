@@ -21,8 +21,7 @@ class SingleHeadAttention(nn.Module):
 
     def init_parameters(self):
         for param in self.parameters():
-            stdv = 1. / math.sqrt(param.size(-1))
-            param.data.uniform_(-stdv, stdv)
+            nn.init.xavier_uniform_(param)
 
     def forward(self, q, k, mask=None):
 
@@ -68,8 +67,7 @@ class MultiHeadAttention(nn.Module):
 
     def init_parameters(self):
         for param in self.parameters():
-            stdv = 1. / math.sqrt(param.size(-1))
-            param.data.uniform_(-stdv, stdv)
+            nn.init.xavier_uniform_(param)
 
     def forward(self, q, k=None, v=None, key_padding_mask=None, attn_mask=None):
         if k is None:

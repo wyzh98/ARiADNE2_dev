@@ -15,7 +15,7 @@ def collision_check(x0, y0, x1, y1, ground_truth, robot_belief):
     dy *= 2
 
     collision_flag = 0
-    max_collision = 2
+    max_collision = 3
 
     while 0 <= x < ground_truth.shape[1] and 0 <= y < ground_truth.shape[0]:
         k = ground_truth.item(y, x)

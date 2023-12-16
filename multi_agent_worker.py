@@ -36,6 +36,7 @@ class Multi_agent_worker:
         done = False
         for robot in self.robot_list:
             robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
+        for robot in self.robot_list:
             robot.update_safe_graph(self.env.safe_info)
         for robot in self.robot_list:
             robot.update_planning_state(self.env.robot_locations)
@@ -88,6 +89,7 @@ class Multi_agent_worker:
             for robot, next_location in zip(self.robot_list, selected_locations):
                 self.env.step(next_location, robot.id)
                 robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
+            for robot in self.robot_list:
                 robot.update_safe_graph(self.env.safe_info)
 
             done = self.env.check_done()

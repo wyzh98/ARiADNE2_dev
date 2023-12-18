@@ -82,7 +82,6 @@ class Multi_agent_worker:
                     selected_locations[id] = selected_location
 
             curr_node_indices = np.array([robot.current_local_index for robot in self.robot_list])
-            reward_list = [- np.max(dist_list) / 30] * self.n_agent
 
             self.env.decrease_safety(selected_locations)
 
@@ -94,9 +93,11 @@ class Multi_agent_worker:
 
             done = self.env.check_done()
 
-            team_reward = self.env.calculate_reward()
+            reward_list, safety_increase_flag = self.env.calculate_reward()  # TODO: if increase number of agent will increase the reward per agent
 
-            if team_reward > 0:
+            team_reward = - np.max(dist_list) / 30
+
+            if safety_increase_flag > 0:
                 safe_increase_log.append(1)
             else:
                 safe_increase_log.append(0)
@@ -162,7 +163,7 @@ class Multi_agent_worker:
         plt.subplot(1, 2, 1)
         plt.imshow(self.env.robot_belief, cmap='gray')
 
-        self.env.classify_safe_frontier_coverage(self.env.robot_locations)
+        self.env.classify_safe_frontier(self.env.robot_locations)
         covered_safe_frontier_cells = get_cell_position_from_coords(self.env.covered_safe_frontiers, self.env.safe_info).reshape(-1, 2)
         uncovered_safe_frontier_cells = get_cell_position_from_coords(self.env.uncovered_safe_frontiers, self.env.safe_info).reshape(-1, 2)
         if covered_safe_frontier_cells.shape[0] != 0:
@@ -200,7 +201,7 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
-    # ckp = torch.load('model/checkpoint.pth', map_location='cpu')
-    # policy_net.load_state_dict(ckp['policy_model'])
+    ckp = torch.load('model/checkpoint.pth', map_location='cpu')
+    policy_net.load_state_dict(ckp['policy_model'])
     worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
     worker.run_episode()

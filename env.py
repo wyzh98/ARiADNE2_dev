@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 from skimage import io
 from skimage.measure import block_reduce
+from scipy import ndimage
 from copy import deepcopy
 import numpy as np
 
@@ -136,7 +137,7 @@ class Env:
         self.uncovered_safe_frontiers = np.array(self.uncovered_safe_frontiers).reshape(-1, 2)
         self.covered_safe_frontiers = np.array(self.covered_safe_frontiers).reshape(-1, 2)
 
-    def classify_safe_frontier_coverage(self, robot_locations):
+    def classify_safe_frontier(self, robot_locations):
         self.uncovered_safe_frontiers, self.covered_safe_frontiers = [], []
         cells_frontiers = get_cell_position_from_coords(self.safe_zone_frontiers, self.safe_info).reshape(-1, 2)
         cells_togo = get_cell_position_from_coords(robot_locations, self.safe_info).reshape(-1, 2)
@@ -156,15 +157,41 @@ class Env:
         self.uncovered_safe_frontiers = np.array(self.uncovered_safe_frontiers).reshape(-1, 2)
         self.covered_safe_frontiers = np.array(self.covered_safe_frontiers).reshape(-1, 2)
 
-    def calculate_reward(self):
-        reward = 0
+    @staticmethod
+    def get_positive_cluster_info(diff_map):
+        diff_map = deepcopy(diff_map)
+        diff_map[diff_map < 0] = 0
+        clusters, n_clusters = ndimage.label(diff_map, structure=np.ones((3, 3)))
+        cluster_centers = []
+        cluster_size = []
+        for i in range(n_clusters):
+            cluster = np.argwhere(clusters == i + 1)
+            cluster_centers.append(np.mean(cluster, axis=0))
+            cluster_size.append(cluster.shape[0])
+        return cluster_centers, cluster_size
 
-        new_area = np.sum(self.safe_zone == 255) - np.sum(self.old_safe_zone == 255)
-        reward += new_area / 1000
+    def calculate_safety_change_clusters(self):
+        # Separate safety increase and decrease to avoid structual connection
+        inc_centers, inc_sizes = self.get_positive_cluster_info(self.safe_zone - self.old_safe_zone)
+        dec_centers, dec_sizes = self.get_positive_cluster_info(self.old_safe_zone - self.safe_zone)
+        dec_sizes = [-s for s in dec_sizes]
+        cluster_centers = inc_centers + dec_centers
+        cluster_sizes = inc_sizes + dec_sizes
+        return np.asarray(cluster_centers), np.asarray(cluster_sizes)
+
+    def calculate_reward(self):
+        safety_increase_flag = np.sum(self.safe_zone == 255) - np.sum(self.old_safe_zone == 255)
+        reward_list = np.zeros(N_AGENTS)
+        cluster_centers, cluster_sizes = self.calculate_safety_change_clusters()
+        robot_cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
+        for center, cluster_size in zip(cluster_centers, cluster_sizes):
+            inverse_dist = 1 / (np.linalg.norm(robot_cells - center, axis=1) + 1)
+            weights = inverse_dist / np.sum(inverse_dist)
+            reward_list += weights * cluster_size / 1000
 
         self.old_safe_zone = deepcopy(self.safe_zone)
 
-        return reward
+        return reward_list, safety_increase_flag
 
     def check_done(self):
         assert self.explored_rate >= self.safe_rate

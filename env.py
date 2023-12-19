@@ -191,7 +191,7 @@ class Env:
 
         self.old_safe_zone = deepcopy(self.safe_zone)
 
-        return reward_list, safety_increase_flag
+        return reward_list * N_AGENTS, safety_increase_flag
 
     def check_done(self):
         assert self.explored_rate >= self.safe_rate
@@ -205,12 +205,13 @@ class Env:
     def evaluate_safe_zone_rate(self):
         self.safe_rate = np.sum(self.safe_zone > 0) / np.sum(self.ground_truth == 255)
 
-    def step(self, next_waypoint, agent_id):
-        next_cell = get_cell_position_from_coords(next_waypoint, self.belief_info)
-        self.robot_locations[agent_id] = next_waypoint
-        self.update_robot_belief(next_cell)
+    def step(self, next_waypoints):
+        self.robot_locations = next_waypoints
+        next_cells = get_cell_position_from_coords(next_waypoints, self.belief_info)
+        for cell in next_cells:
+            self.update_robot_belief(cell)
+            self.update_safe_zone(cell)
         self.explore_frontiers = get_explore_frontier(self.belief_info)
-        self.update_safe_zone(next_cell)
         self.safe_zone_frontiers = get_safe_zone_frontier(self.safe_info, self.belief_info)
         self.evaluate_exploration_rate()
         self.evaluate_safe_zone_rate()

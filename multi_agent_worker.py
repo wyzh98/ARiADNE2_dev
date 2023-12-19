@@ -1,4 +1,5 @@
 import numpy as np
+import time
 import torch
 import matplotlib.pyplot as plt
 from copy import deepcopy
@@ -85,15 +86,16 @@ class Multi_agent_worker:
 
             self.env.decrease_safety(selected_locations)
 
-            for robot, next_location in zip(self.robot_list, selected_locations):
-                self.env.step(next_location, robot.id)
+            self.env.step(selected_locations)
+
+            for robot in self.robot_list:
                 robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
             for robot in self.robot_list:
                 robot.update_safe_graph(self.env.safe_info)
 
             done = self.env.check_done()
 
-            reward_list, safety_increase_flag = self.env.calculate_reward()  # TODO: if increase number of agent will increase the reward per agent
+            reward_list, safety_increase_flag = self.env.calculate_reward()
 
             team_reward = - np.max(dist_list) / 30
 
@@ -203,5 +205,5 @@ if __name__ == '__main__':
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
     ckp = torch.load('model/checkpoint.pth', map_location='cpu')
     policy_net.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
     worker.run_episode()

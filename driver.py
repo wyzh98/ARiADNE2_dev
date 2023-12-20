@@ -109,7 +109,7 @@ def main():
         job_list.append(meta_agent.job.remote(weights_set, curr_episode))
 
     # initialize metric collector
-    metric_name = ['travel_dist', 'success_rate', 'explored_rate', 'safe_rate', 'safe_increase_rate']
+    metric_name = ['travel_dist', 'max_travel_dist', 'success_rate', 'explored_rate', 'safe_rate', 'safe_increase_rate']
     training_data = []
     perf_metrics = {}
     for n in metric_name:
@@ -307,7 +307,7 @@ def write_to_tensor_board(writer, tensorboard_data, curr_episode):
     tensorboard_data = np.array(tensorboard_data)
     tensorboard_data = list(np.nanmean(tensorboard_data, axis=0))
     (reward, value, policy_loss, q_value_loss, entropy, policy_grad_norm, q_value_grad_norm, log_alpha, alpha_loss,
-     travel_dist, success_rate, explored_rate, safe_rate, safe_increase_rate) = tensorboard_data
+     travel_dist, max_travel_dist, success_rate, explored_rate, safe_rate, safe_increase_rate) = tensorboard_data
     metrics = { "Losses/Value": value,
                 "Losses/Policy Loss": policy_loss,
                 "Losses/Alpha Loss": alpha_loss,
@@ -318,6 +318,7 @@ def write_to_tensor_board(writer, tensorboard_data, curr_episode):
                 "Losses/Log Alpha": log_alpha,
                 "Perf/Reward": reward,
                 "Perf/Travel Distance": travel_dist,
+                "Perf/Max Travel Distance": max_travel_dist,
                 "Perf/Success Rate": success_rate,
                 "Perf/Explored Rate": explored_rate,
                 "Perf/Safe Rate": safe_rate,

@@ -43,6 +43,7 @@ class Multi_agent_worker:
             robot.update_planning_state(self.env.robot_locations)
 
         safe_increase_log = []
+        max_travel_dist = 0
         for i in range(MAX_EPISODE_STEP):
             selected_locations = []
             dist_list = []
@@ -99,6 +100,7 @@ class Multi_agent_worker:
 
             team_reward = - np.max(dist_list) / 30
 
+            max_travel_dist += np.max(dist_list)
             if safety_increase_flag > 0:
                 safe_increase_log.append(1)
             else:
@@ -121,6 +123,7 @@ class Multi_agent_worker:
 
         # save metrics
         self.perf_metrics['travel_dist'] = max([robot.travel_dist for robot in self.robot_list])
+        self.perf_metrics['max_travel_dist'] = max_travel_dist
         self.perf_metrics['explored_rate'] = self.env.explored_rate
         self.perf_metrics['safe_rate'] = self.env.safe_rate
         self.perf_metrics['success_rate'] = done
@@ -205,5 +208,5 @@ if __name__ == '__main__':
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
     ckp = torch.load('model/checkpoint.pth', map_location='cpu')
     policy_net.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
     worker.run_episode()

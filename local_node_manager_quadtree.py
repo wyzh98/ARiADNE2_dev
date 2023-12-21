@@ -7,12 +7,24 @@ import quads
 
 
 class NodeManager:
-    def __init__(self, plot=False):
+    def __init__(self, ground_truth=None, ground_truth_info=None, plot=False):
         self.local_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
+        if ground_truth is not None:
+            self.ground_truth_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
+            self.init_ground_truth_nodes(ground_truth, ground_truth_info)
         self.plot = plot
         if self.plot:
             self.x = []
             self.y = []
+
+    def init_ground_truth_nodes(self, ground_truth, ground_truth_info):
+        for coords in ground_truth:
+            key = (coords[0], coords[1])
+            node = LocalNode(coords, np.array([]), ground_truth_info)
+            self.ground_truth_nodes_dict.insert(point=key, data=node)
+        for coords in ground_truth:
+            node = self.ground_truth_nodes_dict.find((coords[0], coords[1])).data
+            node.update_neighbor_explored_nodes(ground_truth_info, self.ground_truth_nodes_dict)
 
     def check_node_exist_in_dict(self, coords):
         key = (coords[0], coords[1])
@@ -88,7 +100,7 @@ class NodeManager:
             explore_utility.append(node.explore_utility)
             safe_utility.append(node.safe_utility)
             signal.append(node.safe)
-            for neighbor in node.explored_neighbor_list:
+            for neighbor in node.neighbor_list:
                 index = np.argwhere(local_node_coords_to_check == neighbor[0] + neighbor[1] * 1j)
                 if index or index == [[0]]:
                     index = index[0][0]
@@ -131,6 +143,30 @@ class NodeManager:
                 occupancy[index] = 1
         assert sum(occupancy) == N_AGENTS-2, print(robot_locations)
         return all_node_coords, explore_utility, safe_utility, guidepost, signal, occupancy, adjacent_matrix, current_index, neighbor_indices
+
+    def get_underlying_node_graph(self, all_node_coords):
+        ground_truth_coords = copy.deepcopy(all_node_coords).tolist()
+
+        for node in self.ground_truth_nodes_dict.__iter__():
+            coords = node.data.coords
+            if not (coords == all_node_coords).all(1).any(0):
+                ground_truth_coords.append(coords)
+
+        ground_truth_coords = np.array(ground_truth_coords).reshape(-1, 2)
+
+        n_nodes = ground_truth_coords.shape[0]
+        ground_truth_adjacent_matrix = np.ones((n_nodes, n_nodes)).astype(int)
+        node_coords_to_check = ground_truth_coords[:, 0] + ground_truth_coords[:, 1] * 1j
+
+        for i, coords in enumerate(ground_truth_coords):
+            node = self.ground_truth_nodes_dict.find((coords[0], coords[1])).data
+            for neighbor in node.neighbor_list:
+                index = np.argwhere(node_coords_to_check == neighbor[0] + neighbor[1] * 1j)
+                if index or index == [[0]]:
+                    index = index[0][0]
+                    ground_truth_adjacent_matrix[i, index] = 0
+
+        return ground_truth_coords, ground_truth_adjacent_matrix
 
     def h(self, coords_1, coords_2):
         # h = abs(coords_1[0] - coords_2[0]) + abs(coords_1[1] - coords_2[1])
@@ -182,7 +218,7 @@ class NodeManager:
                 path.reverse()
                 return path, np.round(length, 2)
 
-            for neighbor_node_coords in node.explored_neighbor_list:
+            for neighbor_node_coords in node.neighbor_list:
                 cost = ((neighbor_node_coords[0] - n_coords[0]) ** 2 + (
                             neighbor_node_coords[1] - n_coords[1]) ** 2) ** (1 / 2)
                 cost = np.round(cost, 2)
@@ -233,7 +269,7 @@ class NodeManager:
             q.remove(u)
 
             node = self.local_nodes_dict.find(u).data
-            for neighbor_node_coords in node.explored_neighbor_list:
+            for neighbor_node_coords in node.neighbor_list:
                 v = (neighbor_node_coords[0], neighbor_node_coords[1])
                 if v in q:
                     cost = ((neighbor_node_coords[0] - u[0]) ** 2 + (
@@ -271,10 +307,10 @@ class LocalNode:
         self.visited = 0
         self.safe = 0
 
-        self.explored_neighbor_matrix = -np.ones((5, 5))
-        self.explored_neighbor_list = []
-        self.explored_neighbor_matrix[2, 2] = 1
-        self.explored_neighbor_list.append(self.coords)
+        self.neighbor_matrix = -np.ones((5, 5))
+        self.neighbor_list = []
+        self.neighbor_matrix[2, 2] = 1
+        self.neighbor_list.append(self.coords)
 
     def init_observable_explore_frontiers(self, local_frontiers, extended_local_map_info):
         if local_frontiers.shape[0] == 0:
@@ -335,15 +371,15 @@ class LocalNode:
             self.safe_utility = self.observable_safe_frontiers.shape[0] if self.observable_safe_frontiers.shape[0] > MIN_UTILITY else 0
 
     def update_neighbor_explored_nodes(self, extended_local_map_info, nodes_dict, plot_x=None, plot_y=None):
-        for i in range(self.explored_neighbor_matrix.shape[0]):
-            for j in range(self.explored_neighbor_matrix.shape[1]):
-                if self.explored_neighbor_matrix[i, j] != -1:
+        for i in range(self.neighbor_matrix.shape[0]):
+            for j in range(self.neighbor_matrix.shape[1]):
+                if self.neighbor_matrix[i, j] != -1:
                     continue
                 else:
-                    center_index = self.explored_neighbor_matrix.shape[0] // 2
+                    center_index = self.neighbor_matrix.shape[0] // 2
                     if i == center_index and j == center_index:
-                        self.explored_neighbor_matrix[i, j] = 1
-                        # self.explored_neighbor_list.append(self.coords)
+                        self.neighbor_matrix[i, j] = 1
+                        # self.neighbor_list.append(self.coords)
                         continue
 
                     neighbor_coords = np.around(np.array([self.coords[0] + (i - center_index) * NODE_RESOLUTION,
@@ -353,7 +389,7 @@ class LocalNode:
                         cell = get_cell_position_from_coords(neighbor_coords, extended_local_map_info)
                         if cell[0] < extended_local_map_info.map.shape[1] and cell[1] < extended_local_map_info.map.shape[0]:
                             if extended_local_map_info.map[cell[1], cell[0]] == 1:
-                                self.explored_neighbor_matrix[i, j] = 1
+                                self.neighbor_matrix[i, j] = 1
                             continue
                     else:
                         neighbor_node = neighbor_node.data
@@ -361,11 +397,11 @@ class LocalNode:
                         neighbor_matrix_x = center_index + (center_index - i)
                         neighbor_matrix_y = center_index + (center_index - j)
                         if not collision:
-                            self.explored_neighbor_matrix[i, j] = 1
-                            self.explored_neighbor_list.append(neighbor_coords)
+                            self.neighbor_matrix[i, j] = 1
+                            self.neighbor_list.append(neighbor_coords)
 
-                            neighbor_node.explored_neighbor_matrix[neighbor_matrix_x, neighbor_matrix_y] = 1
-                            neighbor_node.explored_neighbor_list.append(self.coords)
+                            neighbor_node.neighbor_matrix[neighbor_matrix_x, neighbor_matrix_y] = 1
+                            neighbor_node.neighbor_list.append(self.coords)
 
                             if plot_x is not None and plot_y is not None:
                                 plot_x.append([self.coords[0], neighbor_coords[0]])

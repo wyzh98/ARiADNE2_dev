@@ -296,7 +296,7 @@ class QNet(nn.Module):
         return current_local_node_feature, enhanced_current_local_node_feature
 
     def output_q(self, current_local_node_feature, enhanced_current_local_node_feature, enhanced_local_node_feature,
-                 current_local_edge, local_edge_padding_mask, current_local_index, all_agent_indices, all_agent_next_indices):
+                 current_local_edge, current_local_index, all_agent_indices, all_agent_next_indices):
         embedding_dim = enhanced_local_node_feature.size()[2]
         k_size = current_local_edge.size()[1]
         current_state_feature = current_local_node_feature
@@ -326,11 +326,11 @@ class QNet(nn.Module):
 
     # @torch.compile
     def forward(self, local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index,
-                current_local_edge, local_edge_padding_mask, all_agent_indices, all_agent_next_indices):
+                current_local_edge, all_agent_indices, all_agent_next_indices):
         enhanced_local_node_feature = self.encode_local_graph(local_node_inputs, local_node_padding_mask, local_edge_mask)
         current_local_node_feature, enhanced_current_local_node_feature = self.decode_local_state(enhanced_local_node_feature,
                                                                                                   current_local_index, local_node_padding_mask)
         q_values = self.output_q(current_local_node_feature, enhanced_current_local_node_feature, enhanced_local_node_feature,
-                                 current_local_edge, local_edge_padding_mask, current_local_index, all_agent_indices, all_agent_next_indices)
+                                 current_local_edge, current_local_index, all_agent_indices, all_agent_next_indices)
 
         return q_values

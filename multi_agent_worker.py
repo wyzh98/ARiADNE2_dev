@@ -24,13 +24,13 @@ class Multi_agent_worker:
 
         self.env = Env(global_step, plot=self.save_image)
         self.n_agent = N_AGENTS
-        self.node_manager = NodeManager(plot=self.save_image)
+        self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, plot=self.save_image)
 
         self.robot_list = [Agent(i, policy_net, self.node_manager, self.device, self.save_image) for i in range(N_AGENTS)]
 
         self.episode_buffer = []
         self.perf_metrics = dict()
-        for i in range(18):
+        for i in range(24):
             self.episode_buffer.append([])
 
     def run_episode(self):
@@ -50,16 +50,18 @@ class Multi_agent_worker:
             next_node_index_list = []
             for robot in self.robot_list:
                 local_observation = robot.get_local_observation()
+                state = robot.get_state()
                 robot.save_observation(local_observation)
+                robot.save_state(state)
 
                 next_location, next_node_index, action_index = robot.select_next_waypoint(local_observation)
                 robot.save_action(action_index)
 
                 node = robot.node_manager.local_nodes_dict.find((robot.location[0], robot.location[1]))
-                check = np.array(node.data.explored_neighbor_list)
+                check = np.array(node.data.neighbor_list)
                 assert next_location[0] + next_location[1] * 1j in check[:, 0] + check[:, 1] * 1j, print(next_location,
                                                                                                          robot.location,
-                                                                                                         node.data.explored_neighbor_list)
+                                                                                                         node.data.neighbor_list)
                 selected_locations.append(next_location)
                 dist_list.append(np.linalg.norm(next_location - robot.location))
                 next_node_index_list.append(next_node_index)
@@ -132,7 +134,10 @@ class Multi_agent_worker:
         # save episode buffer
         for robot in self.robot_list:
             local_observation = robot.get_local_observation()
+            state = robot.get_state()
             robot.save_next_observations(local_observation, next_node_index_list)
+            robot.save_next_state(state)
+
             for i in range(len(self.episode_buffer)):
                 self.episode_buffer[i] += robot.episode_buffer[i]
 

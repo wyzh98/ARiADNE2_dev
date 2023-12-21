@@ -27,6 +27,9 @@ class Env:
         self.safe_rate = 0
         self.done = False
 
+        self.ground_truth_info = Map_info(self.ground_truth, self.belief_origin_x, self.belief_origin_y, self.cell_size)
+        self.ground_truth_coords, _ = get_local_node_coords(np.array([0.0, 0.0]), self.ground_truth_info)
+
         self.robot_belief = np.ones_like(self.ground_truth) * 127
         self.update_robot_belief(initial_cell)
         self.belief_info = Map_info(self.robot_belief, self.belief_origin_x, self.belief_origin_y, self.cell_size)

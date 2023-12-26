@@ -59,28 +59,22 @@ class NodeManager:
             node = self.local_nodes_dict.find((coords[0], coords[1])).data
             node.update_neighbor_explored_nodes(extended_local_map_info, self.local_nodes_dict, plot_x, plot_y)
 
-    def update_local_safe_graph(self, robot_location, safe_frontiers, local_safe_zone_info, extended_safe_zone_info, extended_local_map_info):
+    def update_local_safe_graph(self, robot_location, safe_frontiers, extended_safe_zone_info, extended_local_map_info):
         extended_explore_node_coords, _ = get_local_node_coords(robot_location, extended_local_map_info)
         extended_safe_node_coords, _ = get_local_node_coords(robot_location, extended_safe_zone_info, connected=False)
+        extended_node_coords = np.unique(np.concatenate((extended_explore_node_coords, extended_safe_node_coords)), axis=0)
 
-        for coords in extended_explore_node_coords:
+        for coords in extended_node_coords:
             node = self.check_node_exist_in_dict(coords)
             if node is not None:
                 node = node.data
                 if np.any(np.all(coords == extended_safe_node_coords, axis=1)):
                     node.set_safe()
-                    if node.safe_utility > 0:  # To check
-                        node.update_observable_safe_frontiers(safe_frontiers, extended_safe_zone_info)
+                    node.update_observable_safe_frontiers(safe_frontiers, extended_safe_zone_info)
                 else:
                     node.set_unsafe()
-
-        safe_node_coords, _ = get_local_node_coords(robot_location, local_safe_zone_info, connected=False)
-
-        for coords in safe_node_coords:
-            node = self.check_node_exist_in_dict(coords)
-            assert node is not None, "Node should be added in exploration graph first"
-            node = node.data
-            node.update_observable_safe_frontiers(safe_frontiers, extended_safe_zone_info)
+            else:
+                raise ValueError("Node should be added in exploration graph first")
 
     def get_all_node_graph(self, robot_location, robot_locations):
         all_node_coords = []
@@ -141,7 +135,6 @@ class NodeManager:
                 occupancy[index] = -1
             else:
                 occupancy[index] = 1
-        assert sum(occupancy) == N_AGENTS-2, print(robot_locations)
         return all_node_coords, explore_utility, safe_utility, guidepost, signal, occupancy, adjacent_matrix, current_index, neighbor_indices
 
     def get_underlying_node_graph(self, all_node_coords):
@@ -355,10 +348,9 @@ class LocalNode:
     def update_observable_safe_frontiers(self, safe_frontiers, extended_safe_zone_info):
         if not self.safe:
             self.safe_utility = 0
-            return None
-        elif safe_frontiers.shape[0] == 0:
+            return
+        if safe_frontiers.shape[0] == 0:
             self.safe_utility = 0
-            return safe_frontiers
         else:
             observable_safe_frontiers = []
             dist_list = np.linalg.norm(safe_frontiers - self.coords, axis=-1)

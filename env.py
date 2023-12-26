@@ -13,9 +13,12 @@ from utils import *
 
 
 class Env:
-    def __init__(self, episode_index, plot=False):
+    def __init__(self, episode_index, n_agent=N_AGENTS, plot=False, test=False):
         self.episode_index = episode_index
         self.plot = plot
+        self.test = test
+        self.n_agent = n_agent
+
         self.ground_truth, initial_cell = self.import_ground_truth(episode_index)
         self.cell_size = CELL_SIZE  # meter
         self.sensor_range = SENSOR_RANGE  # meter
@@ -39,7 +42,7 @@ class Env:
         self.safe_info = Map_info(self.safe_zone, self.belief_origin_x, self.belief_origin_y, self.cell_size)
 
         free, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
-        choice = np.random.choice(free.shape[0], N_AGENTS, replace=False)
+        choice = np.random.choice(free.shape[0], self.n_agent, replace=False)
         start_loc = free[choice]
         self.robot_locations = np.array(start_loc)
 
@@ -60,17 +63,14 @@ class Env:
 
 
     def import_ground_truth(self, episode_index):
-        map_dir = 'maps_medium'
+        if self.test:
+            map_dir = f'maps_test'
+        else:
+            map_dir = f'maps_medium'
         map_list = os.listdir(map_dir)
         map_index = episode_index % np.size(map_list)
 
-        if map_dir == 'maps_simple':
-            ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1) * 255).astype(int)
-        elif map_dir == 'maps_medium':
-            ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1)).astype(int)
-        else:
-            raise NotImplementedError
-
+        ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1)).astype(int)  # 127: obstacle, 195: free, 208: start
         ground_truth = block_reduce(ground_truth, 2, np.min)
         robot_cell = np.array(np.nonzero(ground_truth == 208))
         robot_cell = np.array([robot_cell[1, 10], robot_cell[0, 10]])
@@ -184,7 +184,7 @@ class Env:
 
     def calculate_reward(self):
         safety_increase_flag = np.sum(self.safe_zone == 255) - np.sum(self.old_safe_zone == 255)
-        reward_list = np.zeros(N_AGENTS)
+        reward_list = np.zeros(self.n_agent)
         cluster_centers, cluster_sizes = self.calculate_safety_change_clusters()
         robot_cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
         for center, cluster_size in zip(cluster_centers, cluster_sizes):
@@ -194,7 +194,7 @@ class Env:
 
         self.old_safe_zone = deepcopy(self.safe_zone)
 
-        return reward_list * N_AGENTS, safety_increase_flag
+        return reward_list * self.n_agent, safety_increase_flag
 
     def check_done(self):
         assert self.explored_rate >= self.safe_rate

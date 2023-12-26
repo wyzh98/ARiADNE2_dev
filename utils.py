@@ -127,7 +127,7 @@ def get_safe_zone_frontier(safe_info, map_info):
     x_len = map_info.map.shape[1]
     y_len = map_info.map.shape[0]
     obstacle = (map_info.map == 1) * 1
-    obstacle = np.lib.pad(obstacle, ((1, 1), (1, 1)), 'constant', constant_values=0)
+    obstacle = np.lib.pad(obstacle, ((1, 1), (1, 1)), 'constant', constant_values=1)  # add obstacle around extended map
     obstacle_neighbor = obstacle[2:][:, 1:x_len + 1] + obstacle[:y_len][:, 1:x_len + 1] + obstacle[1:y_len + 1][:, 2:] \
                         + obstacle[1:y_len + 1][:, :x_len] + obstacle[:y_len][:, 2:] + obstacle[2:][:, :x_len] + \
                         obstacle[2:][:, 2:] + obstacle[:y_len][:, :x_len]

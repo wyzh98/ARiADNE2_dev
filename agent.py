@@ -180,6 +180,7 @@ class Agent:
         global_node_coords = self.true_node_coords
         global_node_explore_utility = self.explore_utility.reshape(-1, 1)
         global_node_safe_utility = self.safe_utility.reshape(-1, 1)
+        global_node_uncovered_safe_utility = self.uncovered_safe_utility.reshape(-1, 1)
         global_node_guidepost = self.guidepost.reshape(-1, 1)
         global_node_occupancy = self.occupancy.reshape(-1, 1)
         global_node_signal = self.signal.reshape(-1, 1)
@@ -189,6 +190,7 @@ class Agent:
 
         global_node_explore_utility = np.pad(global_node_explore_utility, ((0, n_padding), (0, 0)), mode='constant', constant_values=-30)
         global_node_safe_utility = np.pad(global_node_safe_utility, ((0, n_padding), (0, 0)), mode='constant', constant_values=-30)
+        global_node_uncovered_safe_utility = np.pad(global_node_uncovered_safe_utility, ((0, n_padding), (0, 0)), mode='constant', constant_values=-30)
         global_node_guidepost = np.pad(global_node_guidepost, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
         global_node_occupancy = np.pad(global_node_occupancy, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
         global_node_signal = np.pad(global_node_signal, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
@@ -199,7 +201,7 @@ class Agent:
                                             axis=-1) / LOCAL_MAP_SIZE
         global_node_explore_utility = global_node_explore_utility / 30
         global_node_safe_utility = global_node_safe_utility / 30
-        global_node_inputs = np.concatenate((global_node_coords, global_node_explore_utility, global_node_safe_utility,
+        global_node_inputs = np.concatenate((global_node_coords, global_node_explore_utility, global_node_safe_utility, global_node_uncovered_safe_utility,
                                              global_node_guidepost, global_node_signal, global_node_occupancy), axis=1)
         global_node_inputs = torch.FloatTensor(global_node_inputs).unsqueeze(0).to(self.device)
 

@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-
+import torch
 from env import Env
 from agent import Agent
 from utils import *
@@ -31,7 +31,7 @@ class TestWorker:
         for robot in self.robot_list:
             robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
         for robot in self.robot_list:
-            robot.update_safe_graph(self.env.safe_info)
+            robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers)
         for robot in self.robot_list:
             robot.update_planning_state(self.env.robot_locations)
 
@@ -69,10 +69,12 @@ class TestWorker:
 
             self.env.step(selected_locations)
 
+            self.env.classify_safe_frontier(selected_locations)
+
             for robot in self.robot_list:
                 robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
             for robot in self.robot_list:
-                robot.update_safe_graph(self.env.safe_info)
+                robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers)
             for robot in self.robot_list:
                 robot.update_planning_state(self.env.robot_locations)
 

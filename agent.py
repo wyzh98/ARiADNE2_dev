@@ -43,7 +43,7 @@ class Agent:
         self.node_manager = node_manager
 
         # local graph
-        self.local_node_coords, self.explore_utility, self.safe_utility, self.guidepost, self.signal, self.occupancy = None, None, None, None, None, None
+        self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost, self.signal, self.occupancy = None, None, None, None, None, None, None
         self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices = None, None, None
 
         # ground truth graph (only for critic)
@@ -102,14 +102,15 @@ class Agent:
         self.node_manager.update_local_explore_graph(self.location, self.explore_frontier, self.local_map_info,
                                                      self.extended_local_map_info)
 
-    def update_safe_graph(self, safe_zone_info):
+    def update_safe_graph(self, safe_zone_info, uncovered_safe_frontiers):
         self.update_global_safe_zone(safe_zone_info)
         self.update_local_safe_zone()
         self.update_safe_frontiers()
-        self.node_manager.update_local_safe_graph(self.location, self.safe_frontier, self.extended_local_safe_zone_info, self.extended_local_map_info)
+        self.node_manager.update_local_safe_graph(self.location, self.safe_frontier, uncovered_safe_frontiers,
+                                                  self.extended_local_safe_zone_info, self.extended_local_map_info)
 
     def update_planning_state(self, robot_locations):
-        (self.local_node_coords, self.explore_utility, self.safe_utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix,
+        (self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix,
          self.current_local_index, self.local_neighbor_indices) = self.node_manager.get_all_node_graph(self.location, robot_locations)
 
     def update_underlying_state(self):
@@ -119,6 +120,7 @@ class Agent:
         local_node_coords = self.local_node_coords
         local_node_explore_utility = self.explore_utility.reshape(-1, 1)
         local_node_safe_utility = self.safe_utility.reshape(-1, 1)
+        local_node_uncovered_safe_utility = self.uncovered_safe_utility.reshape(-1, 1)
         local_node_guidepost = self.guidepost.reshape(-1, 1)
         local_node_occupancy = self.occupancy.reshape(-1, 1)
         local_node_signal = self.signal.reshape(-1, 1)
@@ -133,7 +135,8 @@ class Agent:
                                            axis=-1) / LOCAL_MAP_SIZE
         local_node_explore_utility = local_node_explore_utility / 30
         local_node_safe_utility = local_node_safe_utility / 30
-        local_node_inputs = np.concatenate((local_node_coords, local_node_explore_utility, local_node_safe_utility,
+        local_node_uncovered_safe_utility = local_node_uncovered_safe_utility / 30
+        local_node_inputs = np.concatenate((local_node_coords, local_node_explore_utility, local_node_safe_utility, local_node_uncovered_safe_utility,
                                             local_node_guidepost, local_node_signal, local_node_occupancy), axis=1)
         local_node_inputs = torch.FloatTensor(local_node_inputs).unsqueeze(0).to(self.device)
 

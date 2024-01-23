@@ -100,7 +100,6 @@ class Env:
         return intersection
 
     def decrease_safety(self, locations_togo):
-        self.uncovered_safe_frontiers, self.covered_safe_frontiers = [], []
         cells_frontiers = get_cell_position_from_coords(self.safe_zone_frontiers, self.safe_info).reshape(-1, 2)
         cells_togo = get_cell_position_from_coords(locations_togo, self.safe_info).reshape(-1, 2)
         sensor_cell_range = round(self.sensor_range / self.cell_size)
@@ -112,10 +111,9 @@ class Env:
             uncovered = True
 
             for loc in nearby_agent_locations:
-                if not check_collision(frontier_loc, loc, self.belief_info, max_collision=5):
+                if not check_collision(frontier_loc, loc, self.belief_info, max_collision=3):
                     uncovered = False
             if uncovered:
-                self.uncovered_safe_frontiers.append(frontier_loc)
                 cell_center = [safety_cell_range, safety_cell_range]
                 x_lower, x_upper = frontier_cell[0] - safety_cell_range, frontier_cell[0] + safety_cell_range + 1
                 y_lower, y_upper = frontier_cell[1] - safety_cell_range, frontier_cell[1] + safety_cell_range + 1
@@ -132,13 +130,7 @@ class Env:
                 sub_safe_zone = self.safe_zone[y_lower: y_upper, x_lower: x_upper]
                 sub_belief = self.robot_belief[y_lower: y_upper, x_lower: x_upper]
                 sub_intersection = intersect_area[y_lower: y_upper, x_lower: x_upper]
-
                 decrease_safety_by_frontier(cell_center, safety_cell_range, sub_safe_zone, sub_belief, sub_intersection)
-            else:
-                self.covered_safe_frontiers.append(frontier_loc)
-
-        self.uncovered_safe_frontiers = np.array(self.uncovered_safe_frontiers).reshape(-1, 2)
-        self.covered_safe_frontiers = np.array(self.covered_safe_frontiers).reshape(-1, 2)
 
     def classify_safe_frontier(self, robot_locations):
         self.uncovered_safe_frontiers, self.covered_safe_frontiers = [], []
@@ -151,7 +143,7 @@ class Env:
             nearby_agent_locations = robot_locations[nearby_agent_indices]
             uncovered = True
             for loc in nearby_agent_locations:
-                if not check_collision(frontier_loc, loc, self.belief_info, max_collision=5):
+                if not check_cumulative_collision(frontier_loc, loc, self.belief_info, max_collision=8):
                     uncovered = False
             if uncovered:
                 self.uncovered_safe_frontiers.append(frontier_loc)

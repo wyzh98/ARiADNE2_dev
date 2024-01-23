@@ -6,6 +6,7 @@ from skimage.morphology import label
 
 from parameter import *
 from sklearn.neighbors import NearestNeighbors
+import matplotlib.pyplot as plt
 
 
 def get_cell_position_from_coords(coords, map_info):
@@ -247,6 +248,49 @@ def check_collision(start, end, map_info, max_collision=1):
         else:
             y += y_inc
             error += dx
+    return collision
+
+
+def check_cumulative_collision(start, end, map_info, max_collision=1):
+    collision = False
+
+    start_cell = get_cell_position_from_coords(start, map_info)
+    end_cell = get_cell_position_from_coords(end, map_info)
+    map = map_info.map
+
+    x0 = start_cell[0]
+    y0 = start_cell[1]
+    x1 = end_cell[0]
+    y1 = end_cell[1]
+    dx, dy = abs(x1 - x0), abs(y1 - y0)
+    x, y = x0, y0
+    error = dx - dy
+    x_inc = 1 if x1 > x0 else -1
+    y_inc = 1 if y1 > y0 else -1
+    dx *= 2
+    dy *= 2
+
+    collision_flag = 0
+    last_k = -1
+
+    while 0 <= x < map.shape[1] and 0 <= y < map.shape[0]:
+        k = map.item(int(y), int(x))
+        if x == x1 and y == y1:
+            break
+        if k in [0, 1, 127]:
+            collision_flag += 1
+            if collision_flag >= max_collision:
+                collision = True
+                break
+        if error > 0:
+            x += x_inc
+            error -= dy
+        else:
+            y += y_inc
+            error += dx
+        if last_k != k and collision_flag > 0:
+            collision_flag -= 1
+        last_k = k
     return collision
 
 

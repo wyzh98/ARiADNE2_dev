@@ -1,4 +1,3 @@
-import copy
 import os
 import matplotlib.pyplot as plt
 from skimage import io
@@ -13,11 +12,12 @@ from utils import *
 
 
 class Env:
-    def __init__(self, episode_index, n_agent=N_AGENTS, plot=False, test=False):
+    def __init__(self, episode_index, n_agent=N_AGENTS, explore=EXPLORATION, plot=False, test=False):
         self.episode_index = episode_index
         self.plot = plot
         self.test = test
         self.n_agent = n_agent
+        self.explore = explore
 
         self.ground_truth, initial_cell = self.import_ground_truth(episode_index)
         self.cell_size = CELL_SIZE  # meter
@@ -33,7 +33,7 @@ class Env:
         self.ground_truth_info = Map_info(self.ground_truth, self.belief_origin_x, self.belief_origin_y, self.cell_size)
         self.ground_truth_coords, _ = get_local_node_coords(np.array([0.0, 0.0]), self.ground_truth_info)
 
-        self.robot_belief = np.ones_like(self.ground_truth) * 127
+        self.robot_belief = np.ones_like(self.ground_truth) * 127 if explore else deepcopy(self.ground_truth)
         self.update_robot_belief(initial_cell)
         self.belief_info = Map_info(self.robot_belief, self.belief_origin_x, self.belief_origin_y, self.cell_size)
 
@@ -42,6 +42,7 @@ class Env:
         self.safe_info = Map_info(self.safe_zone, self.belief_origin_x, self.belief_origin_y, self.cell_size)
 
         free, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
+        free = free if explore else free[np.argsort(np.linalg.norm(free, axis=1))[:self.n_agent * 2]]
         choice = np.random.choice(free.shape[0], self.n_agent, replace=False)
         start_loc = free[choice]
         self.robot_locations = np.array(start_loc)
@@ -176,13 +177,16 @@ class Env:
 
     def calculate_reward(self):
         safety_increase_flag = np.sum(self.safe_zone == 255) - np.sum(self.old_safe_zone == 255)
-        reward_list = np.zeros(self.n_agent)
-        cluster_centers, cluster_sizes = self.calculate_safety_change_clusters()
-        robot_cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
-        for center, cluster_size in zip(cluster_centers, cluster_sizes):
-            inverse_dist = 1 / (np.linalg.norm(robot_cells - center, axis=1) + 1)
-            weights = inverse_dist / np.sum(inverse_dist)
-            reward_list += weights * cluster_size / 1000
+
+        # reward_list = np.zeros(self.n_agent)
+        # cluster_centers, cluster_sizes = self.calculate_safety_change_clusters()
+        # robot_cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
+        # for center, cluster_size in zip(cluster_centers, cluster_sizes):
+        #     inverse_dist = 1 / (np.linalg.norm(robot_cells - center, axis=1) + 1)
+        #     weights = inverse_dist / np.sum(inverse_dist)
+        #     reward_list += weights * cluster_size / 1000
+
+        reward_list = np.ones(self.n_agent) * safety_increase_flag / self.n_agent / 1000
 
         self.old_safe_zone = deepcopy(self.safe_zone)
 

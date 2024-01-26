@@ -7,21 +7,26 @@ import quads
 
 
 class NodeManager:
-    def __init__(self, ground_truth=None, ground_truth_info=None, plot=False):
+    def __init__(self, ground_truth=None, ground_truth_info=None, explore=False, plot=False):
         self.local_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
         if ground_truth is not None:
             self.ground_truth_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
-            self.init_ground_truth_nodes(ground_truth, ground_truth_info)
+            self.init_ground_truth_nodes(ground_truth, ground_truth_info, explore)
+        else:
+            if explore:
+                raise ValueError("Ground truth is needed for exploration.")
         self.plot = plot
         if self.plot:
             self.x = []
             self.y = []
 
-    def init_ground_truth_nodes(self, ground_truth, ground_truth_info):
+    def init_ground_truth_nodes(self, ground_truth, ground_truth_info, explore):
         for coords in ground_truth:
             key = (coords[0], coords[1])
             node = LocalNode(coords, np.array([]), ground_truth_info)
             self.ground_truth_nodes_dict.insert(point=key, data=node)
+            if not explore:
+                self.local_nodes_dict.insert(point=key, data=node)
         for coords in ground_truth:
             node = self.ground_truth_nodes_dict.find((coords[0], coords[1])).data
             node.update_neighbor_explored_nodes(ground_truth_info, self.ground_truth_nodes_dict)
@@ -107,7 +112,7 @@ class NodeManager:
         uncovered_safe_utility = np.array(uncovered_safe_utility)
         signal = np.array(signal)
 
-        indices = np.argwhere(explore_utility > 0).reshape(-1)
+        indices = np.argwhere(safe_utility > 0).reshape(-1)
         utility_node_coords = all_node_coords[indices]
         dist_dict, prev_dict = self.Dijkstra(robot_location)
         nearest_utility_coords = robot_location

@@ -20,7 +20,7 @@ class TestWorker:
         self.greedy = greedy
 
         self.env = Env(global_step, n_agent=TEST_N_AGENTS, plot=self.save_image, test=True)
-        self.node_manager = NodeManager(plot=self.save_image)
+        self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=EXPLORATION, plot=self.save_image)
 
         self.robot_list = [Agent(i, policy_net, self.node_manager, self.device, self.save_image) for i in range(self.env.n_agent)]
 

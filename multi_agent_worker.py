@@ -24,7 +24,7 @@ class Multi_agent_worker:
 
         self.env = Env(global_step, plot=self.save_image)
         self.n_agent = N_AGENTS
-        self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, plot=self.save_image)
+        self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=EXPLORATION, plot=self.save_image)
 
         self.robot_list = [Agent(i, policy_net, self.node_manager, self.device, self.save_image) for i in range(self.n_agent)]
 
@@ -103,7 +103,7 @@ class Multi_agent_worker:
 
             reward_list, safety_increase_flag = self.env.calculate_reward()
 
-            team_reward = - np.max(dist_list) / 30
+            team_reward = - np.mean(dist_list) / 30
 
             max_travel_dist += np.max(dist_list)
             if safety_increase_flag > 0:
@@ -217,7 +217,7 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
-    ckp = torch.load('model/checkpoint.pth', map_location='cpu')
+    ckp = torch.load('model/advsearch_10/checkpoint.pth', map_location='cpu')
     policy_net.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
     worker.run_episode()

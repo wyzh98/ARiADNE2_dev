@@ -118,7 +118,6 @@ class Agent:
 
     def get_local_observation(self, pad=True):
         local_node_coords = self.local_node_coords
-        local_node_explore_utility = self.explore_utility.reshape(-1, 1)
         local_node_safe_utility = self.safe_utility.reshape(-1, 1)
         local_node_uncovered_safe_utility = self.uncovered_safe_utility.reshape(-1, 1)
         local_node_guidepost = self.guidepost.reshape(-1, 1)
@@ -133,10 +132,9 @@ class Agent:
         local_node_coords = np.concatenate((local_node_coords[:, 0].reshape(-1, 1) - current_local_node_coords[0],
                                             local_node_coords[:, 1].reshape(-1, 1) - current_local_node_coords[1]),
                                            axis=-1) / LOCAL_MAP_SIZE
-        local_node_explore_utility = local_node_explore_utility / 30
         local_node_safe_utility = local_node_safe_utility / 30
         local_node_uncovered_safe_utility = local_node_uncovered_safe_utility / 30
-        local_node_inputs = np.concatenate((local_node_coords, local_node_explore_utility, local_node_safe_utility, local_node_uncovered_safe_utility,
+        local_node_inputs = np.concatenate((local_node_coords, local_node_safe_utility, local_node_uncovered_safe_utility,
                                             local_node_guidepost, local_node_signal, local_node_occupancy), axis=1)
         local_node_inputs = torch.FloatTensor(local_node_inputs).unsqueeze(0).to(self.device)
 
@@ -178,7 +176,6 @@ class Agent:
 
     def get_state(self):
         global_node_coords = self.true_node_coords
-        global_node_explore_utility = self.explore_utility.reshape(-1, 1)
         global_node_safe_utility = self.safe_utility.reshape(-1, 1)
         global_node_uncovered_safe_utility = self.uncovered_safe_utility.reshape(-1, 1)
         global_node_guidepost = self.guidepost.reshape(-1, 1)
@@ -188,7 +185,6 @@ class Agent:
         n_global_node = global_node_coords.shape[0]
         n_padding = n_global_node - self.local_node_coords.shape[0]
 
-        global_node_explore_utility = np.pad(global_node_explore_utility, ((0, n_padding), (0, 0)), mode='constant', constant_values=-30)
         global_node_safe_utility = np.pad(global_node_safe_utility, ((0, n_padding), (0, 0)), mode='constant', constant_values=-30)
         global_node_uncovered_safe_utility = np.pad(global_node_uncovered_safe_utility, ((0, n_padding), (0, 0)), mode='constant', constant_values=-30)
         global_node_guidepost = np.pad(global_node_guidepost, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
@@ -199,10 +195,9 @@ class Agent:
         global_node_coords = np.concatenate((global_node_coords[:, 0].reshape(-1, 1) - current_global_node_coords[0],
                                              global_node_coords[:, 1].reshape(-1, 1) - current_global_node_coords[1]),
                                             axis=-1) / LOCAL_MAP_SIZE
-        global_node_explore_utility = global_node_explore_utility / 30
         global_node_safe_utility = global_node_safe_utility / 30
         global_node_uncovered_safe_utility = global_node_uncovered_safe_utility / 30
-        global_node_inputs = np.concatenate((global_node_coords, global_node_explore_utility, global_node_safe_utility, global_node_uncovered_safe_utility,
+        global_node_inputs = np.concatenate((global_node_coords, global_node_safe_utility, global_node_uncovered_safe_utility,
                                              global_node_guidepost, global_node_signal, global_node_occupancy), axis=1)
         global_node_inputs = torch.FloatTensor(global_node_inputs).unsqueeze(0).to(self.device)
 

@@ -52,7 +52,7 @@ class Agent:
         self.travel_dist = 0
 
         self.episode_buffer = []
-        for i in range(24):
+        for i in range(26):
             self.episode_buffer.append([])
 
         if self.plot:
@@ -116,7 +116,7 @@ class Agent:
     def update_underlying_state(self):
         self.true_node_coords, self.true_adjacent_matrix = self.node_manager.get_underlying_node_graph(self.local_node_coords)
 
-    def get_local_observation(self, pad=True):
+    def get_local_observation(self, gru_h, pad=True):
         local_node_coords = self.local_node_coords
         local_node_safe_utility = self.safe_utility.reshape(-1, 1)
         local_node_uncovered_safe_utility = self.uncovered_safe_utility.reshape(-1, 1)
@@ -172,7 +172,7 @@ class Agent:
             padding = torch.nn.ConstantPad1d((0, LOCAL_K_SIZE - k_size), 1)
             local_edge_padding_mask = padding(local_edge_padding_mask)
 
-        return [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask]
+        return [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask, gru_h]
 
     def get_state(self):
         global_node_coords = self.true_node_coords
@@ -218,9 +218,9 @@ class Agent:
         return [global_node_inputs, global_node_padding_mask, global_edge_mask]
 
     def select_next_waypoint(self, local_observation, greedy=False):
-        _, _, _, _, current_local_edge, _ = local_observation
+        _, _, _, _, current_local_edge, _, _ = local_observation
         with torch.no_grad():
-            logp = self.policy_net(*local_observation)
+            logp, gru_h = self.policy_net(*local_observation)
 
         if greedy:
             action_index = torch.argmax(logp, dim=1).long()
@@ -230,7 +230,7 @@ class Agent:
         next_node_index = current_local_edge[0, action_index.item(), 0].item()
         next_position = self.local_node_coords[next_node_index]
 
-        return next_position, next_node_index, action_index
+        return next_position, next_node_index, action_index, gru_h
 
     def get_local_map(self, location, map_info):
         local_map_origin_x = (location[
@@ -316,59 +316,62 @@ class Agent:
         return local_map_info
 
     def save_observation(self, local_observation):
-        local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
+        local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask, gru_h = local_observation
         self.episode_buffer[0] += local_node_inputs
         self.episode_buffer[1] += local_node_padding_mask.bool()
         self.episode_buffer[2] += local_edge_mask.bool()
         self.episode_buffer[3] += current_local_index
         self.episode_buffer[4] += current_local_edge
         self.episode_buffer[5] += local_edge_padding_mask.bool()
+        self.episode_buffer[6] += gru_h
 
     def save_action(self, action_index):
-        self.episode_buffer[6] += action_index.reshape(1, 1, 1)
+        self.episode_buffer[7] += action_index.reshape(1, 1, 1)
 
     def save_reward(self, reward):
-        self.episode_buffer[7] += torch.FloatTensor([reward]).reshape(1, 1, 1).to(self.device)
+        self.episode_buffer[8] += torch.FloatTensor([reward]).reshape(1, 1, 1).to(self.device)
 
     def save_done(self, done):
-        self.episode_buffer[8] += torch.tensor([int(done)]).reshape(1, 1, 1).to(self.device)
+        self.episode_buffer[9] += torch.tensor([int(done)]).reshape(1, 1, 1).to(self.device)
 
     def save_all_indices(self, all_agent_curr_indices):
-        self.episode_buffer[15] += torch.tensor(all_agent_curr_indices).reshape(1, -1, 1).to(self.device)
+        self.episode_buffer[16] += torch.tensor(all_agent_curr_indices).reshape(1, -1, 1).to(self.device)
 
     def save_next_observations(self, local_observation, next_node_index_list):
-        self.episode_buffer[9] = copy.deepcopy(self.episode_buffer[0])[1:]
-        self.episode_buffer[10] = copy.deepcopy(self.episode_buffer[1])[1:]
-        self.episode_buffer[11] = copy.deepcopy(self.episode_buffer[2])[1:]
-        self.episode_buffer[12] = copy.deepcopy(self.episode_buffer[3])[1:]
-        self.episode_buffer[13] = copy.deepcopy(self.episode_buffer[4])[1:]
-        self.episode_buffer[14] = copy.deepcopy(self.episode_buffer[5])[1:]
-        self.episode_buffer[16] = copy.deepcopy(self.episode_buffer[15])[1:]
-
-        local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
-        self.episode_buffer[9] += local_node_inputs
-        self.episode_buffer[10] += local_node_padding_mask.bool()
-        self.episode_buffer[11] += local_edge_mask.bool()
-        self.episode_buffer[12] += current_local_index
-        self.episode_buffer[13] += current_local_edge
-        self.episode_buffer[14] += local_edge_padding_mask.bool()
-        self.episode_buffer[16] += torch.tensor(next_node_index_list).reshape(1, -1, 1).to(self.device)
+        self.episode_buffer[10] = copy.deepcopy(self.episode_buffer[0])[1:]
+        self.episode_buffer[11] = copy.deepcopy(self.episode_buffer[1])[1:]
+        self.episode_buffer[12] = copy.deepcopy(self.episode_buffer[2])[1:]
+        self.episode_buffer[14] = copy.deepcopy(self.episode_buffer[3])[1:]
+        self.episode_buffer[14] = copy.deepcopy(self.episode_buffer[4])[1:]
+        self.episode_buffer[15] = copy.deepcopy(self.episode_buffer[5])[1:]
         self.episode_buffer[17] = copy.deepcopy(self.episode_buffer[16])[1:]
-        self.episode_buffer[17] += copy.deepcopy(self.episode_buffer[16])[:-1]
+        self.episode_buffer[18] = copy.deepcopy(self.episode_buffer[6])[1:]
+
+        local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask, gru_h = local_observation
+        self.episode_buffer[10] += local_node_inputs
+        self.episode_buffer[11] += local_node_padding_mask.bool()
+        self.episode_buffer[12] += local_edge_mask.bool()
+        self.episode_buffer[13] += current_local_index
+        self.episode_buffer[14] += current_local_edge
+        self.episode_buffer[15] += local_edge_padding_mask.bool()
+        self.episode_buffer[17] += torch.tensor(next_node_index_list).reshape(1, -1, 1).to(self.device)
+        self.episode_buffer[18] += gru_h
+        self.episode_buffer[19] = copy.deepcopy(self.episode_buffer[17])[1:]
+        self.episode_buffer[19] += copy.deepcopy(self.episode_buffer[17])[:-1]
 
     def save_state(self, state):
         global_node_inputs, global_node_padding_mask, global_edge_mask = state
-        self.episode_buffer[18] += global_node_inputs
-        self.episode_buffer[19] += global_node_padding_mask.bool()
-        self.episode_buffer[20] += global_edge_mask.bool()
+        self.episode_buffer[20] += global_node_inputs
+        self.episode_buffer[21] += global_node_padding_mask.bool()
+        self.episode_buffer[22] += global_edge_mask.bool()
 
     def save_next_state(self, state):
-        self.episode_buffer[21] = copy.deepcopy(self.episode_buffer[18])[1:]
-        self.episode_buffer[22] = copy.deepcopy(self.episode_buffer[19])[1:]
-        self.episode_buffer[23] = copy.deepcopy(self.episode_buffer[20])[1:]
+        self.episode_buffer[23] = copy.deepcopy(self.episode_buffer[18])[1:]
+        self.episode_buffer[24] = copy.deepcopy(self.episode_buffer[19])[1:]
+        self.episode_buffer[25] = copy.deepcopy(self.episode_buffer[20])[1:]
 
         global_node_inputs, global_node_padding_mask, global_edge_mask = state
-        self.episode_buffer[21] += global_node_inputs
-        self.episode_buffer[22] += global_node_padding_mask.bool()
-        self.episode_buffer[23] += global_edge_mask.bool()
+        self.episode_buffer[23] += global_node_inputs
+        self.episode_buffer[24] += global_node_padding_mask.bool()
+        self.episode_buffer[25] += global_edge_mask.bool()
 

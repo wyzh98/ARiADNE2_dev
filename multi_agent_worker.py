@@ -22,7 +22,7 @@ class Multi_agent_worker:
         self.save_image = save_image
         self.device = device
 
-        self.env = Env(global_step, plot=self.save_image)
+        self.env = Env(global_step, explore=EXPLORATION, plot=self.save_image)
         self.n_agent = N_AGENTS
         self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=EXPLORATION, plot=self.save_image)
 
@@ -30,7 +30,7 @@ class Multi_agent_worker:
 
         self.episode_buffer = []
         self.perf_metrics = dict()
-        for i in range(24):
+        for i in range(26):
             self.episode_buffer.append([])
 
     def run_episode(self):
@@ -45,17 +45,18 @@ class Multi_agent_worker:
 
         safe_increase_log = []
         max_travel_dist = 0
+        gru_hs = [torch.zeros((1, 1, EMBEDDING_DIM)).to(self.device) for _ in range(self.n_agent)]
         for i in range(MAX_EPISODE_STEP):
             selected_locations = []
             dist_list = []
             next_node_index_list = []
             for robot in self.robot_list:
-                local_observation = robot.get_local_observation()
+                local_observation = robot.get_local_observation(gru_hs[robot.id])
                 state = robot.get_state()
                 robot.save_observation(local_observation)
                 robot.save_state(state)
 
-                next_location, next_node_index, action_index = robot.select_next_waypoint(local_observation)
+                next_location, next_node_index, action_index, gru_hs[robot.id] = robot.select_next_waypoint(local_observation)
                 robot.save_action(action_index)
 
                 node = robot.node_manager.local_nodes_dict.find((robot.location[0], robot.location[1]))
@@ -67,24 +68,7 @@ class Multi_agent_worker:
                 dist_list.append(np.linalg.norm(next_location - robot.location))
                 next_node_index_list.append(next_node_index)
 
-            selected_locations = np.array(selected_locations).reshape(-1, 2)
-            arriving_sequence = np.argsort(np.array(dist_list))
-            selected_locations_in_arriving_sequence = np.array(selected_locations)[arriving_sequence]
-
-            for j, selected_location in enumerate(selected_locations_in_arriving_sequence):
-                solved_locations = selected_locations_in_arriving_sequence[:j]
-                while selected_location[0] + selected_location[1] * 1j in solved_locations[:, 0] + solved_locations[:, 1] * 1j:
-                    id = arriving_sequence[j]
-                    nearby_nodes = self.robot_list[id].node_manager.local_nodes_dict.nearest_neighbors(selected_location.tolist(), 25)
-                    for node in nearby_nodes:
-                        coords = node.data.coords
-                        if coords[0] + coords[1] * 1j in solved_locations[:, 0] + solved_locations[:, 1] * 1j:
-                            continue
-                        selected_location = coords
-                        break
-
-                    selected_locations_in_arriving_sequence[j] = selected_location
-                    selected_locations[id] = selected_location
+            selected_locations = self.solve_path_confict(selected_locations, dist_list)
 
             curr_node_indices = np.array([robot.current_local_index for robot in self.robot_list])
 
@@ -101,22 +85,17 @@ class Multi_agent_worker:
 
             done = self.env.check_done()
 
-            reward_list, safety_increase_flag = self.env.calculate_reward()
-
-            team_reward = - np.mean(dist_list) / 30
+            indiv_reward, safety_increase = self.env.calculate_reward(dist_list)
 
             max_travel_dist += np.max(dist_list)
-            if safety_increase_flag > 0:
+            if safety_increase > 0:
                 safe_increase_log.append(1)
             else:
                 safe_increase_log.append(0)
 
-            if done:
-                team_reward += 30
-
-            for robot, reward in zip(self.robot_list, reward_list):
+            for robot, reward in zip(self.robot_list, indiv_reward):
                 robot.save_all_indices(np.array(curr_node_indices))
-                robot.save_reward(reward + team_reward)
+                robot.save_reward(reward)
                 robot.save_done(done)
                 robot.update_planning_state(self.env.robot_locations)
                 robot.update_underlying_state()
@@ -137,7 +116,7 @@ class Multi_agent_worker:
 
         # save episode buffer
         for robot in self.robot_list:
-            local_observation = robot.get_local_observation()
+            local_observation = robot.get_local_observation(gru_hs[robot.id])
             state = robot.get_state()
             robot.save_next_observations(local_observation, next_node_index_list)
             robot.save_next_state(state)
@@ -148,6 +127,30 @@ class Multi_agent_worker:
         # save gif
         if self.save_image:
             make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.safe_rate)
+
+    def solve_path_confict(self, selected_locations, dist_list):
+        selected_locations = np.array(selected_locations).reshape(-1, 2)
+        arriving_sequence = np.argsort(np.array(dist_list))
+        selected_locations_in_arriving_sequence = np.array(selected_locations)[arriving_sequence]
+
+        for j, selected_location in enumerate(selected_locations_in_arriving_sequence):
+            solved_locations = selected_locations_in_arriving_sequence[:j]
+            while selected_location[0] + selected_location[1] * 1j in solved_locations[:, 0] + solved_locations[:,
+                                                                                               1] * 1j:
+                id = arriving_sequence[j]
+                nearby_nodes = self.robot_list[id].node_manager.local_nodes_dict.nearest_neighbors(
+                    selected_location.tolist(), 25)
+                for node in nearby_nodes:
+                    coords = node.data.coords
+                    if coords[0] + coords[1] * 1j in solved_locations[:, 0] + solved_locations[:, 1] * 1j:
+                        continue
+                    selected_location = coords
+                    break
+
+                selected_locations_in_arriving_sequence[j] = selected_location
+                selected_locations[id] = selected_location
+
+        return selected_locations
 
     def plot_local_env(self, step):
         plt.switch_backend('agg')
@@ -217,7 +220,7 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
-    ckp = torch.load('model/advsearch_10/checkpoint.pth', map_location='cpu')
-    policy_net.load_state_dict(ckp['policy_model'])
+    # ckp = torch.load('model/advsearch_10/checkpoint.pth', map_location='cpu')
+    # policy_net.load_state_dict(ckp['policy_model'])
     worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
     worker.run_episode()

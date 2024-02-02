@@ -19,7 +19,7 @@ class TestWorker:
         self.device = device
         self.greedy = greedy
 
-        self.env = Env(global_step, n_agent=TEST_N_AGENTS, plot=self.save_image, test=True)
+        self.env = Env(global_step, n_agent=TEST_N_AGENTS, explore=EXPLORATION, plot=self.save_image, test=True)
         self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=EXPLORATION, plot=self.save_image)
 
         self.robot_list = [Agent(i, policy_net, self.node_manager, self.device, self.save_image) for i in range(self.env.n_agent)]
@@ -36,13 +36,14 @@ class TestWorker:
             robot.update_planning_state(self.env.robot_locations)
 
         max_travel_dist = 0
+        gru_hs = [torch.zeros((1, 1, EMBEDDING_DIM)).to(self.device) for _ in range(self.n_agent)]
         for i in range(MAX_EPISODE_STEP):
             selected_locations = []
             dist_list = []
 
             for robot in self.robot_list:
-                local_observation = robot.get_local_observation(pad=False)
-                next_location, _, _ = robot.select_next_waypoint(local_observation, self.greedy)
+                local_observation = robot.get_local_observation(gru_hs[robot.id], pad=False)
+                next_location, _, _, gru_hs[robot.id] = robot.select_next_waypoint(local_observation, self.greedy)
                 selected_locations.append(next_location)
                 dist_list.append(np.linalg.norm(next_location - robot.location))
 

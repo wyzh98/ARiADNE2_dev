@@ -213,6 +213,7 @@ class PolicyNet(nn.Module):
         # decoder
         self.local_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
         self.current_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
+        self.gru = nn.GRU(embedding_dim, embedding_dim, batch_first=True)
 
         # pointer
         self.pointer = SingleHeadAttention(embedding_dim)
@@ -225,15 +226,16 @@ class PolicyNet(nn.Module):
 
         return enhanced_local_node_feature
 
-    def decode_local_state(self, enhanced_local_node_feature, current_local_index, local_node_padding_mask):
+    def decode_local_state(self, enhanced_local_node_feature, current_local_index, local_node_padding_mask, gru_h):
         embedding_dim = enhanced_local_node_feature.size()[2]
         current_local_node_feature = torch.gather(enhanced_local_node_feature, 1,
                                                   current_local_index.repeat(1, 1, embedding_dim))
+        current_local_node_feature, gru_h = self.gru(current_local_node_feature, gru_h.permute(1, 0, 2))
         enhanced_current_local_node_feature, _ = self.local_decoder(current_local_node_feature,
                                                                     enhanced_local_node_feature,
                                                                     local_node_padding_mask)
 
-        return current_local_node_feature, enhanced_current_local_node_feature
+        return current_local_node_feature, enhanced_current_local_node_feature, gru_h.permute(1, 0, 2)
 
     def output_policy(self, current_local_node_feature, enhanced_current_local_node_feature,
                       enhanced_local_node_feature, current_local_edge, local_edge_padding_mask):
@@ -252,14 +254,14 @@ class PolicyNet(nn.Module):
 
     # @torch.compile
     def forward(self, local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index,
-                current_local_edge, local_edge_padding_mask):
+                current_local_edge, local_edge_padding_mask, gru_h):
         enhanced_local_node_feature = self.encode_local_graph(local_node_inputs, local_node_padding_mask, local_edge_mask)
-        current_local_node_feature, enhanced_current_local_node_feature = self.decode_local_state(
-            enhanced_local_node_feature, current_local_index, local_node_padding_mask)
+        current_local_node_feature, enhanced_current_local_node_feature, gru_h = self.decode_local_state(
+            enhanced_local_node_feature, current_local_index, local_node_padding_mask, gru_h)
         logp = self.output_policy(current_local_node_feature, enhanced_current_local_node_feature,
                                   enhanced_local_node_feature, current_local_edge, local_edge_padding_mask)
 
-        return logp
+        return logp, gru_h
 
 
 class QNet(nn.Module):

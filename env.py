@@ -12,7 +12,7 @@ from utils import *
 
 
 class Env:
-    def __init__(self, episode_index, n_agent=N_AGENTS, explore=EXPLORATION, plot=False, test=False):
+    def __init__(self, episode_index, n_agent=N_AGENTS, explore=True, plot=False, test=False):
         self.episode_index = episode_index
         self.plot = plot
         self.test = test
@@ -175,8 +175,8 @@ class Env:
         cluster_sizes = inc_sizes + dec_sizes
         return np.asarray(cluster_centers), np.asarray(cluster_sizes)
 
-    def calculate_reward(self):
-        safety_increase_flag = np.sum(self.safe_zone == 255) - np.sum(self.old_safe_zone == 255)
+    def calculate_reward(self, dist_list):
+        safety_increase = np.sum(self.safe_zone == 255) - np.sum(self.old_safe_zone == 255)
 
         # reward_list = np.zeros(self.n_agent)
         # cluster_centers, cluster_sizes = self.calculate_safety_change_clusters()
@@ -186,15 +186,21 @@ class Env:
         #     weights = inverse_dist / np.sum(inverse_dist)
         #     reward_list += weights * cluster_size / 1000
 
-        reward_list = np.ones(self.n_agent) * safety_increase_flag / self.n_agent / 1000
+        reward_list = np.ones(self.n_agent) * safety_increase / self.n_agent / 1000
+
+        reward_list = reward_list * self.n_agent - np.max(dist_list) / 30
+
+        if self.done:
+            reward_list += 30
 
         self.old_safe_zone = deepcopy(self.safe_zone)
-
-        return reward_list * self.n_agent, safety_increase_flag
+        return reward_list, safety_increase
 
     def check_done(self):
         assert self.explored_rate >= self.safe_rate
-        if self.explored_rate > 0.999 and self.safe_rate >= 0.999:
+        # if self.explored_rate > 0.999 and self.safe_rate >= 0.999:
+        #     self.done = True
+        if self.safe_zone_frontiers.shape[0] == 0:
             self.done = True
         return self.done
 

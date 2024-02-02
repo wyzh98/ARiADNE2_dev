@@ -341,7 +341,7 @@ class Agent:
         self.episode_buffer[10] = copy.deepcopy(self.episode_buffer[0])[1:]
         self.episode_buffer[11] = copy.deepcopy(self.episode_buffer[1])[1:]
         self.episode_buffer[12] = copy.deepcopy(self.episode_buffer[2])[1:]
-        self.episode_buffer[14] = copy.deepcopy(self.episode_buffer[3])[1:]
+        self.episode_buffer[13] = copy.deepcopy(self.episode_buffer[3])[1:]
         self.episode_buffer[14] = copy.deepcopy(self.episode_buffer[4])[1:]
         self.episode_buffer[15] = copy.deepcopy(self.episode_buffer[5])[1:]
         self.episode_buffer[17] = copy.deepcopy(self.episode_buffer[16])[1:]

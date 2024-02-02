@@ -366,9 +366,9 @@ class Agent:
         self.episode_buffer[22] += global_edge_mask.bool()
 
     def save_next_state(self, state):
-        self.episode_buffer[23] = copy.deepcopy(self.episode_buffer[18])[1:]
-        self.episode_buffer[24] = copy.deepcopy(self.episode_buffer[19])[1:]
-        self.episode_buffer[25] = copy.deepcopy(self.episode_buffer[20])[1:]
+        self.episode_buffer[23] = copy.deepcopy(self.episode_buffer[20])[1:]
+        self.episode_buffer[24] = copy.deepcopy(self.episode_buffer[21])[1:]
+        self.episode_buffer[25] = copy.deepcopy(self.episode_buffer[22])[1:]
 
         global_node_inputs, global_node_padding_mask, global_edge_mask = state
         self.episode_buffer[23] += global_node_inputs

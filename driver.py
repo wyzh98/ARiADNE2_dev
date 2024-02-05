@@ -117,7 +117,7 @@ def main():
 
     # initialize training replay buffer
     experience_buffer = []
-    for i in range(26):
+    for i in range(24):
         experience_buffer.append([])
 
     # collect data from worker and do training

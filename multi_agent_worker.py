@@ -30,7 +30,7 @@ class Multi_agent_worker:
 
         self.episode_buffer = []
         self.perf_metrics = dict()
-        for i in range(26):
+        for i in range(24):
             self.episode_buffer.append([])
 
     def run_episode(self):

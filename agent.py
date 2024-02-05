@@ -52,7 +52,7 @@ class Agent:
         self.travel_dist = 0
 
         self.episode_buffer = []
-        for i in range(26):
+        for i in range(24):
             self.episode_buffer.append([])
 
         if self.plot:

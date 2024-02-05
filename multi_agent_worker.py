@@ -45,18 +45,17 @@ class Multi_agent_worker:
 
         safe_increase_log = []
         max_travel_dist = 0
-        gru_hs = [torch.zeros((1, 1, EMBEDDING_DIM)).to(self.device) for _ in range(self.n_agent)]
         for i in range(MAX_EPISODE_STEP):
             selected_locations = []
             dist_list = []
             next_node_index_list = []
             for robot in self.robot_list:
-                local_observation = robot.get_local_observation(gru_hs[robot.id])
+                local_observation = robot.get_local_observation()
                 state = robot.get_state()
                 robot.save_observation(local_observation)
                 robot.save_state(state)
 
-                next_location, next_node_index, action_index, gru_hs[robot.id] = robot.select_next_waypoint(local_observation)
+                next_location, next_node_index, action_index = robot.select_next_waypoint(local_observation)
                 robot.save_action(action_index)
 
                 node = robot.node_manager.local_nodes_dict.find((robot.location[0], robot.location[1]))
@@ -116,7 +115,7 @@ class Multi_agent_worker:
 
         # save episode buffer
         for robot in self.robot_list:
-            local_observation = robot.get_local_observation(gru_hs[robot.id])
+            local_observation = robot.get_local_observation()
             state = robot.get_state()
             robot.save_next_observations(local_observation, next_node_index_list)
             robot.save_next_state(state)
@@ -222,5 +221,5 @@ if __name__ == '__main__':
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
     # ckp = torch.load('model/advsearch_10/checkpoint.pth', map_location='cpu')
     # policy_net.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
     worker.run_episode()

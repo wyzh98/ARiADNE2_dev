@@ -166,31 +166,29 @@ def main():
                     current_local_index = torch.stack(rollouts[3]).to(device)
                     current_local_edge = torch.stack(rollouts[4]).to(device)
                     local_edge_padding_mask = torch.stack(rollouts[5]).to(device)
-                    gru_h = torch.stack(rollouts[6]).to(device)
-                    action = torch.stack(rollouts[7]).to(device)
-                    reward = torch.stack(rollouts[8]).to(device)
-                    done = torch.stack(rollouts[9]).to(device)
+                    action = torch.stack(rollouts[6]).to(device)
+                    reward = torch.stack(rollouts[7]).to(device)
+                    done = torch.stack(rollouts[8]).to(device)
+                    all_agent_indices = torch.stack(rollouts[9]).to(device)
                     next_local_node_inputs = torch.stack(rollouts[10]).to(device)
                     next_local_node_padding_mask = torch.stack(rollouts[11]).to(device)
                     next_local_edge_mask = torch.stack(rollouts[12]).to(device)
                     next_current_local_index = torch.stack(rollouts[13]).to(device)
                     next_current_local_edge = torch.stack(rollouts[14]).to(device)
                     next_local_edge_padding_mask = torch.stack(rollouts[15]).to(device)
-                    all_agent_indices = torch.stack(rollouts[16]).to(device)
-                    all_agent_next_indices = torch.stack(rollouts[17]).to(device)
-                    next_gru_h = torch.stack(rollouts[18]).to(device)
-                    next_all_agent_next_indices = torch.stack(rollouts[19]).to(device)
-                    global_node_inputs = torch.stack(rollouts[20]).to(device)
-                    global_node_padding_mask = torch.stack(rollouts[21]).to(device)
-                    global_edge_mask = torch.stack(rollouts[22]).to(device)
-                    next_global_node_inputs = torch.stack(rollouts[23]).to(device)
-                    next_global_node_padding_mask = torch.stack(rollouts[24]).to(device)
-                    next_global_edge_mask = torch.stack(rollouts[25]).to(device)
+                    all_agent_next_indices = torch.stack(rollouts[16]).to(device)
+                    next_all_agent_next_indices = torch.stack(rollouts[17]).to(device)
+                    global_node_inputs = torch.stack(rollouts[18]).to(device)
+                    global_node_padding_mask = torch.stack(rollouts[19]).to(device)
+                    global_edge_mask = torch.stack(rollouts[20]).to(device)
+                    next_global_node_inputs = torch.stack(rollouts[21]).to(device)
+                    next_global_node_padding_mask = torch.stack(rollouts[22]).to(device)
+                    next_global_edge_mask = torch.stack(rollouts[23]).to(device)
 
                     observation = [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index,
-                                   current_local_edge, local_edge_padding_mask, gru_h]
+                                   current_local_edge, local_edge_padding_mask]
                     next_observation = [next_local_node_inputs, next_local_node_padding_mask, next_local_edge_mask,
-                                        next_current_local_index, next_current_local_edge, next_local_edge_padding_mask, next_gru_h]
+                                        next_current_local_index, next_current_local_edge, next_local_edge_padding_mask]
                     state = [global_node_inputs, global_node_padding_mask, global_edge_mask, current_local_index,
                              current_local_edge, all_agent_indices, all_agent_next_indices]
                     next_state = [next_global_node_inputs, next_global_node_padding_mask, next_global_edge_mask,
@@ -202,7 +200,7 @@ def main():
                         q_values2 = dp_q_net2(*state)
                         q_values = torch.min(q_values1, q_values2)
 
-                    logp, _ = dp_policy(*observation)
+                    logp = dp_policy(*observation)
                     policy_loss = torch.sum(
                         (logp.exp().unsqueeze(2) * (log_alpha.exp().detach() * logp.unsqueeze(2) - q_values.detach())),
                         dim=1).mean()
@@ -214,7 +212,7 @@ def main():
                     global_policy_optimizer.step()
 
                     with torch.no_grad():
-                        next_logp, _ = dp_policy(*next_observation)
+                        next_logp = dp_policy(*next_observation)
                         next_q_values1 = dp_target_q_net1(*next_state)
                         next_q_values2 = dp_target_q_net2(*next_state)
                         next_q_values = torch.min(next_q_values1, next_q_values2)

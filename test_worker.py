@@ -36,14 +36,13 @@ class TestWorker:
             robot.update_planning_state(self.env.robot_locations)
 
         max_travel_dist = 0
-        gru_hs = [torch.zeros((1, 1, EMBEDDING_DIM)).to(self.device) for _ in range(self.n_agent)]
         for i in range(MAX_EPISODE_STEP):
             selected_locations = []
             dist_list = []
 
             for robot in self.robot_list:
-                local_observation = robot.get_local_observation(gru_hs[robot.id], pad=False)
-                next_location, _, _, gru_hs[robot.id] = robot.select_next_waypoint(local_observation, self.greedy)
+                local_observation = robot.get_local_observation(pad=False)
+                next_location, _, _ = robot.select_next_waypoint(local_observation, self.greedy)
                 selected_locations.append(next_location)
                 dist_list.append(np.linalg.norm(next_location - robot.location))
 

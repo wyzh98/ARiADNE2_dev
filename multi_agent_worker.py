@@ -38,7 +38,7 @@ class Multi_agent_worker:
         for robot in self.robot_list:
             robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
         for robot in self.robot_list:
-            robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers)
+            robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers, self.env.counter_safe_info)
         for robot in self.robot_list:
             robot.update_planning_state(self.env.robot_locations)
             robot.update_underlying_state()
@@ -80,7 +80,7 @@ class Multi_agent_worker:
             for robot in self.robot_list:
                 robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
             for robot in self.robot_list:
-                robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers)
+                robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers, self.env.counter_safe_info)
 
             done = self.env.check_done()
 
@@ -219,7 +219,7 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
-    # ckp = torch.load('model/advsearch_10/checkpoint.pth', map_location='cpu')
+    # ckp = torch.load('model/advsearch_14_nogru/checkpoint.pth', map_location='cpu')
     # policy_net.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
     worker.run_episode()

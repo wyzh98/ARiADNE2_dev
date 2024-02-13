@@ -56,7 +56,7 @@ def safety_check(x0, y0, x1, y1, sub_safe_zone, sub_belief, sub_intersection):
     while 0 <= x < sub_safe_zone.shape[1] and 0 <= y < sub_safe_zone.shape[0]:
         k1 = sub_safe_zone.item(y, x)
         k2 = sub_belief.item(y, x)
-        k3 = sub_intersection.item(y, x)
+        k3 = sub_intersection.item(y, x) if sub_intersection is not None else 0
 
         if k2 == 1:
             break

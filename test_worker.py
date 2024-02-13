@@ -31,7 +31,7 @@ class TestWorker:
         for robot in self.robot_list:
             robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
         for robot in self.robot_list:
-            robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers)
+            robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers, self.env.counter_safe_info)
         for robot in self.robot_list:
             robot.update_planning_state(self.env.robot_locations)
 
@@ -74,7 +74,7 @@ class TestWorker:
             for robot in self.robot_list:
                 robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
             for robot in self.robot_list:
-                robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers)
+                robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers, self.env.counter_safe_info)
             for robot in self.robot_list:
                 robot.update_planning_state(self.env.robot_locations)
 
@@ -165,6 +165,6 @@ class TestWorker:
 
 if __name__ == '__main__':
     from model import PolicyNet
-    net = PolicyNet(7, 128)
+    net = PolicyNet(8, 128)
     test_worker = TestWorker(0, net, 0, save_image=False, greedy=True)
     test_worker.run_episode()

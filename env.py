@@ -70,15 +70,17 @@ class Env:
 
     def import_ground_truth(self, episode_index):
         if self.test:
-            map_dir = f'maps_outdoor'
+            map_dir = f'maps_test'
         else:
             map_dir = f'maps_medium'
         map_list = os.listdir(map_dir)
         map_index = episode_index % np.size(map_list)
 
         ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1)).astype(int)  # 127: obstacle, 195: free, 208: start
+        # ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1) * 255).astype(int)  # 127: obstacle, 195: free, 208: start
         ground_truth = block_reduce(ground_truth, 2, np.min)
         robot_cell = np.array(np.nonzero(ground_truth == 208))
+        # robot_cell = np.array(np.nonzero(ground_truth == 54))
         robot_cell = np.array([robot_cell[1, 10], robot_cell[0, 10]])
 
         ground_truth = (ground_truth > 150) | ((ground_truth <= 80) & (ground_truth >= 50))

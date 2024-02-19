@@ -2,14 +2,14 @@ TEST_N_AGENTS = 4
 
 EXPLORATION = True
 
-INPUT_DIM = 7
+INPUT_DIM = 8
 EMBEDDING_DIM = 128
 MAX_EPISODE_STEP = 128
 
 USE_GPU = False  # do you want to use GPUS?
 NUM_GPU = 0  # the number of GPUs
 NUM_META_AGENT = 1  # the number of processes
-FOLDER_NAME = 'advsearch_mid_9'
+FOLDER_NAME = 'advsearch'
 model_path = f'model/{FOLDER_NAME}'
 gifs_path = f'results/gifs'
 

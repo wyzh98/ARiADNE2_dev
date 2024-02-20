@@ -8,6 +8,7 @@ import numpy as np
 
 from sensor import exploration_sensor, coverage_sensor, decrease_safety_by_frontier
 from parameter import *
+from test_parameter import GROUP_START
 from utils import *
 
 
@@ -43,14 +44,16 @@ class Env:
         self.counter_safe_info = deepcopy(self.safe_info)
 
         free, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
-        # free = free if explore else free[np.argsort(np.linalg.norm(free, axis=1))[:self.n_agent * 2]]
-        # choice = np.random.choice(free.shape[0], self.n_agent, replace=False)
-        # start_loc = free[choice]
-        # self.robot_locations = np.array(start_loc)
-        free = free[~(np.all(free == [0, 0], axis=1))]
-        choice = np.random.choice(free.shape[0], self.n_agent-1, replace=False)
-        start_loc = free[choice]
-        self.robot_locations = np.vstack([start_loc, np.zeros((1,2))])
+        if GROUP_START:
+            free = free if explore else free[np.argsort(np.linalg.norm(free, axis=1))[:self.n_agent * 2]]
+            choice = np.random.choice(free.shape[0], self.n_agent, replace=False)
+            start_loc = free[choice]
+            self.robot_locations = np.array(start_loc)
+        else:
+            free = free[~(np.all(free == [0, 0], axis=1))]
+            choice = np.random.choice(free.shape[0], self.n_agent - 1, replace=False)
+            start_loc = free[choice]
+            self.robot_locations = np.vstack([start_loc, np.zeros((1, 2))])
 
         robot_cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
         for robot_cell in robot_cells:
@@ -209,8 +212,8 @@ class Env:
 
     def check_done(self):
         assert self.explored_rate >= self.safe_rate
-        # if self.explored_rate > 0.999 and self.safe_rate >= 0.999:
-        #     self.done = True
+        if self.explored_rate > 0.9999 and self.safe_rate >= 0.9999:
+            self.done = True
         if self.safe_zone_frontiers.shape[0] == 0:
             self.done = True
         return self.done

@@ -360,7 +360,7 @@ class Agent:
         self.episode_buffer[15] += local_edge_padding_mask.bool()
         self.episode_buffer[16] += torch.tensor(next_node_index_list).reshape(1, -1, 1).to(self.device)
         self.episode_buffer[17] = copy.deepcopy(self.episode_buffer[16])[1:]
-        self.episode_buffer[17] += copy.deepcopy(self.episode_buffer[16])[:-1]
+        self.episode_buffer[17] += copy.deepcopy(self.episode_buffer[16])[-1:]
 
     def save_state(self, state):
         global_node_inputs, global_node_padding_mask, global_edge_mask = state

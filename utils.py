@@ -166,7 +166,19 @@ def frontier_down_sample(data, voxel_size=FRONTIER_CELL_SIZE):
                 voxel_dict[voxel_index] = point
 
     downsampled_data = np.array(list(voxel_dict.values()))
+
+    # downsampled_data = remove_isolate_frontiers(downsampled_data, voxel_size)
+
     return downsampled_data
+
+
+def remove_isolate_frontiers(data, voxel_size):
+    differences = data[:, np.newaxis, :] - data[np.newaxis, :, :]
+    distance_to_otherfrontiers = np.sqrt(np.sum(differences ** 2, axis=2))
+    np.fill_diagonal(distance_to_otherfrontiers, np.inf)
+    min_distance = np.min(distance_to_otherfrontiers, axis=1)
+    data = data[min_distance < voxel_size * 2]
+    return data
 
 
 def get_partial_map_from_center(original_map_info, center_coords, partial_map_size):

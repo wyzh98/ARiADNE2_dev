@@ -18,6 +18,8 @@ class TestWorker:
         self.save_image = save_image
         self.device = device
         self.greedy = greedy
+        np.random.seed(123)
+        torch.manual_seed(123)
 
         self.env = Env(global_step, n_agent=TEST_N_AGENTS, explore=EXPLORATION, plot=self.save_image, test=True)
         self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=EXPLORATION, plot=self.save_image)
@@ -34,6 +36,8 @@ class TestWorker:
             robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers, self.env.counter_safe_info)
         for robot in self.robot_list:
             robot.update_planning_state(self.env.robot_locations)
+        if self.save_image:
+            self.plot_local_env(-1)
 
         max_travel_dist = 0
         for i in range(MAX_EPISODE_STEP):
@@ -106,28 +110,18 @@ class TestWorker:
 
     def plot_local_env(self, step, planned_paths=None):
         plt.switch_backend('agg')
-        plt.figure(figsize=(11, 5))
+        plt.figure(figsize=(9, 4))
         plt.subplot(1, 2, 2)
-        plt.imshow(self.env.robot_belief, cmap='gray', vmin=0)
+        plt.imshow(self.env.robot_belief, cmap='gray', vmin=0, alpha=0)
         plt.axis('off')
-        color_list = ['r', 'b', 'g', 'y', 'm', 'c', 'k', 'r', 'b', 'g']
-        for robot in self.robot_list:
-            c = color_list[robot.id]
-            robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
-            plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=12, zorder=5)
-            plt.plot((np.array(robot.trajectory_x) - robot.global_map_info.map_origin_x) / robot.cell_size,
-                     (np.array(robot.trajectory_y) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
-                     linewidth=2, zorder=3)
-            # guidepost = robot.local_node_coords[np.where(robot.guidepost == 1)[0]]
-            # guidepost_cell = get_cell_position_from_coords(guidepost, robot.global_map_info).reshape(-1, 2)
-            # plt.scatter(guidepost_cell[:, 0], guidepost_cell[:, 1], c=c, marker='*', s=11, zorder=7)
-            if robot.id == 0:
-                nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
-                plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.explore_utility, s=6, zorder=2)
-
-        if self.env.explore_frontiers.shape[0] != 0:
-            explore_frontier_cells = get_cell_position_from_coords(self.env.explore_frontiers, self.env.belief_info).reshape(-1, 2)
-            plt.scatter(explore_frontier_cells[:, 0], explore_frontier_cells[:, 1], c='b', s=1, zorder=6)
+        color_list = ['r', 'b', 'g', 'y', 'm', 'c', 'k', 'w', (1,0.5,0.5), (0.2,0.5,0.7)]
+        robot = self.robot_list[0]
+        nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
+        plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.safe_utility, s=5, zorder=2)  # 5, 20
+        for i in range(nodes.shape[0]):
+            for j in range(i+1, nodes.shape[0]):
+                if robot.local_adjacent_matrix[i, j] == 0:
+                    plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.988, 0.557, 0.675), linewidth=1.5, zorder=1)  # 0.5, 1.5
 
         plt.subplot(1, 2, 1)
         plt.imshow(self.env.robot_belief, cmap='gray')
@@ -136,32 +130,34 @@ class TestWorker:
         covered_safe_frontier_cells = get_cell_position_from_coords(self.env.covered_safe_frontiers, self.env.safe_info).reshape(-1, 2)
         uncovered_safe_frontier_cells = get_cell_position_from_coords(self.env.uncovered_safe_frontiers, self.env.safe_info).reshape(-1, 2)
         if covered_safe_frontier_cells.shape[0] != 0:
-            plt.scatter(covered_safe_frontier_cells[:, 0], covered_safe_frontier_cells[:, 1], c='g', s=1, zorder=6)
+            plt.scatter(covered_safe_frontier_cells[:, 0], covered_safe_frontier_cells[:, 1], c='g', s=1, zorder=6)  # 0.4, 1
         if uncovered_safe_frontier_cells.shape[0] != 0:
-            plt.scatter(uncovered_safe_frontier_cells[:, 0], uncovered_safe_frontier_cells[:, 1], c='r', s=1, zorder=6)
+            plt.scatter(uncovered_safe_frontier_cells[:, 0], uncovered_safe_frontier_cells[:, 1], c='r', s=1, zorder=6)  # 0.4, 1
 
+        n_segments = len(self.robot_list[0].trajectory_x) - 1
+        alpha_values = np.linspace(0.3, 1, n_segments)
         for robot in self.robot_list:
             c = color_list[robot.id]
             if robot.id == 0:
-                nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
                 alpha_mask = robot.safe_zone_info.map / 255 / 3
                 plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=alpha_mask)
                 plt.axis('off')
-                plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.safe_utility, s=6, zorder=2)
-                # signal = robot.local_node_coords[np.where(robot.signal == 1)[0]]
-                # signal_cell = get_cell_position_from_coords(signal, robot.global_map_info).reshape(-1, 2)
-                # plt.scatter(signal_cell[:, 0], signal_cell[:, 1], c='w', marker='.', s=2, zorder=3, alpha=0.5)
 
             robot_cell = get_cell_position_from_coords(robot.location, robot.safe_zone_info)
-            plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=12, zorder=5)
+            plt.plot(robot_cell[0], robot_cell[1], c=c, marker='o', markersize=10, zorder=5)  # 5,10
+
+            for i in range(n_segments):
+                plt.plot((np.array(robot.trajectory_x[i:i+2]) - robot.global_map_info.map_origin_x) / robot.cell_size,
+                         (np.array(robot.trajectory_y[i:i+2]) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
+                         linewidth=2, alpha=alpha_values[i], zorder=3)  # 1,2
 
         plt.axis('off')
-        plt.suptitle('Explored ratio: {:.4g} | Safe ratio: {:.4g} | Travel distance: {:.4g}'.format(self.env.explored_rate,
+        plt.suptitle('Explored rate: {:.4g} | Cleared rate: {:.4g} | Trajectory length: {:.4g}'.format(self.env.explored_rate,
                                                                                                 self.env.safe_rate,
                                                                                                 max([robot.travel_dist for robot in self.robot_list])))
         plt.tight_layout()
         # plt.show()
-        plt.savefig('{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step), dpi=150)
+        plt.savefig('{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step))
         plt.close()
         frame = '{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step)
         self.env.frame_files.append(frame)

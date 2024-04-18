@@ -6,18 +6,17 @@ from env import Env
 from agent import Agent
 from utils import *
 from local_node_manager_quadtree import NodeManager
-from sensor import exploration_sensor, coverage_sensor
+from sensor import coverage_sensor
 
 
-TEST_N_AGENTS = 2
+TEST_N_AGENTS = 4
 EXPLORATION = True
 # GROUP_START: change in test_parameter.py
 
-MAX_EPISODE_STEP = 35
+MAX_EPISODE_STEP = 128
 SENSOR_RANGE = 20
-UTILITY_RANGE = 0.8 * SENSOR_RANGE
-NODE_RESOLUTION = 4.0
 CELL_SIZE = 0.4
+SAVE_IMG = False
 gifs_path = 'results/gifs'
 
 if not os.path.exists(gifs_path):
@@ -53,18 +52,36 @@ class DurhamWorker:
             self.agent_status[frontier_guard] = 1
             self.agent_next_location[frontier_guard] = best_path[0]
         assert len(frontier_guards) > 0
-        return frontier_guards
 
-    def assign_follower(self, frontier_guards, best_locations):
+    def assign_follower(self):
         for robot in self.robot_list:
-            if robot.id not in frontier_guards:
+            if self.agent_status[robot.id] == 0:  # follower
                 min_dist = 1e6
-                for guard_coords in best_locations:
-                    path_coords, dist = self.node_manager.a_star(robot.location, guard_coords)
-                    if dist < min_dist:
-                        min_dist = dist
-                        best_path = path_coords
+                for status, guard_next_coords in zip(self.agent_status, self.agent_next_location):
+                    if status == 1:  # frontier guard
+                        path_coords, dist = self.node_manager.a_star(robot.location, guard_next_coords)
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_path = path_coords
                 self.agent_next_location[robot.id] = best_path[0]
+
+    def check_frontier_coverage(self, selected_locations):
+        selected_locations = np.array(selected_locations).reshape(-1, 2)
+        selected_frontier_uncoverage = np.zeros(selected_locations.shape[0])
+        for frontier_loc in self.env.safe_zone_frontiers:
+            nearby_selected_indices = np.argwhere(np.linalg.norm(selected_locations - frontier_loc, axis=1) < SENSOR_RANGE)
+            nearby_selected_locations = selected_locations[nearby_selected_indices]
+            uncovered = True
+            for loc in nearby_selected_locations:
+                if not check_collision(frontier_loc, loc, self.env.belief_info, max_collision=3):
+                    uncovered = False
+            if uncovered:
+                nearest_index = np.argmin(np.linalg.norm(self.env.robot_locations - frontier_loc, axis=1))
+                selected_frontier_uncoverage[nearest_index] += 1
+        for i, loc in enumerate(selected_locations):
+            if selected_frontier_uncoverage[i] > 1:
+                selected_locations[i] = self.env.robot_locations[i]
+        return selected_locations, selected_frontier_uncoverage
 
     def update_imaginary_safe_zone(self, robot_cell, imaginary_safe_zone):
         padded_robot_belief = deepcopy(self.env.robot_belief)
@@ -80,7 +97,7 @@ class DurhamWorker:
         assert len(non_zero_utility_node_indices) > 0
         candidate_node_coords = all_node_coords[non_zero_utility_node_indices]
         imaginary_safe_zone = self.env.safe_zone
-        max_increase = 0
+        max_increase = 2
         best_locations = []
         filtered_indices = []
 
@@ -91,7 +108,7 @@ class DurhamWorker:
                 candidate_flag = True
                 for location in best_locations:
                     dist_to_candidate = np.linalg.norm(location - coords)
-                    if (dist_to_candidate < UTILITY_RANGE) and (not check_collision(location, coords, self.env.belief_info)):
+                    if (dist_to_candidate < SENSOR_RANGE) and (not check_collision(location, coords, self.env.belief_info)):
                         candidate_flag = False
                         break
                 if candidate_flag:
@@ -103,15 +120,13 @@ class DurhamWorker:
                         best_imaginary_safe_zone = new_imaginary_safe_zone
                 else:
                     filtered_indices.append(i)
-            if len(best_locations) > 0:
-                if np.all(best_coords == best_locations[-1]):
-                    print(best_locations)
-                    return best_locations
+
+            if len(best_locations) > 0 and np.all(best_coords == best_locations[-1]):
+                return best_locations
+
             imaginary_safe_zone = best_imaginary_safe_zone
             best_locations.append(best_coords)
-            max_increase = 0
-        # return best_locations[:-1]
-
+            max_increase = 2
 
     def run_episode(self):
         for robot in self.robot_list:
@@ -127,33 +142,26 @@ class DurhamWorker:
         for i in range(MAX_EPISODE_STEP):
             self.agent_status = [0] * self.env.n_agent
             best_locations = self.find_next_best_views()
-            frontier_guards = self.assign_frontier_guard(best_locations)
-            self.assign_follower(frontier_guards, best_locations)
+            self.assign_frontier_guard(best_locations)
+            self.assign_follower()
 
-            selected_locations = []
+            next_locations = []
             dist_list = []
             for robot in self.robot_list:
                 next_location = self.agent_next_location[robot.id]
-                selected_locations.append(next_location)
+                next_locations.append(next_location)
                 dist_list.append(np.linalg.norm(next_location - robot.location))
 
-            selected_locations = np.array(selected_locations).reshape(-1, 2)
-            arriving_sequence = np.argsort(np.array(dist_list))
-            selected_locations_in_arriving_sequence = np.array(selected_locations)[arriving_sequence]
-            for j, selected_location in enumerate(selected_locations_in_arriving_sequence):
-                solved_locations = selected_locations_in_arriving_sequence[:j]
-                while selected_location[0] + selected_location[1] * 1j in solved_locations[:, 0] + solved_locations[:, 1] * 1j:
-                    id = arriving_sequence[j]
-                    nearby_nodes = self.robot_list[id].node_manager.local_nodes_dict.nearest_neighbors(
-                        selected_location.tolist(), 25)
-                    for node in nearby_nodes:
-                        coords = node.data.coords
-                        if coords[0] + coords[1] * 1j in solved_locations[:, 0] + solved_locations[:, 1] * 1j:
-                            continue
-                        selected_location = coords
-                        break
-                    selected_locations_in_arriving_sequence[j] = selected_location
-                    selected_locations[id] = selected_location
+            selected_locations, _ = self.check_frontier_coverage(next_locations)
+
+            frontier_guards = [robot.id for robot in self.robot_list if self.agent_status[robot.id] == 1]
+            followers = [robot.id for robot in self.robot_list if self.agent_status[robot.id] == 0]
+            print(f"Step {i}\tFrontier guards: {frontier_guards}\tFollowers: {followers}")
+
+            if self.save_image:
+                self.plot_local_env(i, best_locations)
+
+            selected_locations = self.solve_path_confict(selected_locations, dist_list)
 
             self.env.decrease_safety(selected_locations)
             # self.env.safe_zone_frontiers = get_safe_zone_frontier(self.env.safe_info, self.env.belief_info)
@@ -174,20 +182,44 @@ class DurhamWorker:
 
             done = self.env.check_done()
 
-            if self.save_image:
-                self.plot_local_env(i)
-
-            if done:
-                break
-
             if max_travel_dist >= 1000:
                 max_travel_dist = 1000
                 break
 
+            if done:
+                if self.save_image:
+                    self.plot_local_env(i+1, best_locations)
+                break
+
+        print(f"{TEST_N_AGENTS} agents, max travelled distance: {max_travel_dist}, explored rate: {self.env.explored_rate}, cleared rate: {self.env.safe_rate}")
+
         if self.save_image:
             make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.explored_rate)
 
-    def plot_local_env(self, step, planned_paths=None):
+
+    def solve_path_confict(self, selected_locations, dist_list):
+        selected_locations = np.array(selected_locations).reshape(-1, 2)
+        arriving_sequence = np.argsort(np.array(dist_list))
+        selected_locations_in_arriving_sequence = np.array(selected_locations)[arriving_sequence]
+        for j, selected_location in enumerate(selected_locations_in_arriving_sequence):
+            solved_locations = selected_locations_in_arriving_sequence[:j]
+            while selected_location[0] + selected_location[1] * 1j in solved_locations[:, 0] + solved_locations[:,
+                                                                                               1] * 1j:
+                id = arriving_sequence[j]
+                nearby_nodes = self.robot_list[id].node_manager.local_nodes_dict.nearest_neighbors(
+                    selected_location.tolist(), 25)
+                for node in nearby_nodes:
+                    coords = node.data.coords
+                    if coords[0] + coords[1] * 1j in solved_locations[:, 0] + solved_locations[:, 1] * 1j:
+                        continue
+                    selected_location = coords
+                    break
+                selected_locations_in_arriving_sequence[j] = selected_location
+                selected_locations[id] = selected_location
+
+        return selected_locations
+
+    def plot_local_env(self, step, best_locations=None):
         plt.switch_backend('agg')
         plt.figure(figsize=(9, 4))
         plt.subplot(1, 2, 2)
@@ -230,6 +262,12 @@ class DurhamWorker:
                          (np.array(robot.trajectory_y[i:i+2]) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
                          linewidth=2, alpha=alpha_values[i], zorder=3)  # 1,2
 
+        if best_locations is not None:
+            cells = get_cell_position_from_coords(np.array(best_locations), self.env.belief_info).reshape(-1, 2)
+            for i, cell in enumerate(cells):
+                plt.scatter(cell[0], cell[1], c='k', s=1, zorder=10)
+                plt.text(cell[0], cell[1], str(i+1), fontsize=8, color='k', zorder=10)
+
         plt.axis('off')
         plt.suptitle('Explored rate: {:.4g} | Cleared rate: {:.4g} | Trajectory length: {:.4g}'.format(self.env.explored_rate,
                                                                                                 self.env.safe_rate,
@@ -243,5 +281,5 @@ class DurhamWorker:
 
 
 if __name__ == '__main__':
-    worker = DurhamWorker(0, 0, True)
+    worker = DurhamWorker(0, 0, SAVE_IMG)
     worker.run_episode()

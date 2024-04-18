@@ -90,11 +90,11 @@ class TestWorker:
             if self.save_image:
                 self.plot_local_env(i)
 
-            if done:
-                break
-
             if max_travel_dist >= 1000:
                 max_travel_dist = 1000
+                break
+
+            if done:
                 break
 
         # save metrics
@@ -166,5 +166,7 @@ class TestWorker:
 if __name__ == '__main__':
     from model import PolicyNet
     net = PolicyNet(8, 128)
+    ckp = torch.load(f'{model_path}/checkpoint.pth', map_location=torch.device('cpu'))
+    net.load_state_dict(ckp['policy_model'])
     test_worker = TestWorker(0, net, 0, save_image=False, greedy=True)
     test_worker.run_episode()

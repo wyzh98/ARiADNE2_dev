@@ -144,13 +144,13 @@ def get_safe_zone_frontier(safe_info, map_info):
 
     if frontier_cell.shape[0] > 0:
         frontier_coords = get_coords_from_cell_position(frontier_cell, safe_info)
-        frontier_coords = frontier_down_sample(frontier_coords.reshape(-1, 2))
+        frontier_coords = frontier_down_sample(frontier_coords.reshape(-1, 2), safe_info)
     else:
         frontier_coords = frontier_cell
-    return frontier_coords
+    return frontier_coords.reshape(-1, 2)
 
 
-def frontier_down_sample(data, voxel_size=FRONTIER_CELL_SIZE):
+def frontier_down_sample(data, map_info=None, voxel_size=FRONTIER_CELL_SIZE):
     voxel_indices = np.array(data / voxel_size, dtype=int).reshape(-1, 2)
 
     voxel_dict = {}
@@ -167,13 +167,36 @@ def frontier_down_sample(data, voxel_size=FRONTIER_CELL_SIZE):
 
     downsampled_data = np.array(list(voxel_dict.values()))
 
-    # downsampled_data = remove_isolate_frontiers(downsampled_data, voxel_size)
+    if map_info is not None:
+        downsampled_data = push_frontier_to_free(downsampled_data, map_info)
+
+    downsampled_data = remove_isolate_frontiers(downsampled_data, voxel_size)
 
     return downsampled_data
 
 
+def push_frontier_to_free(data, map_info):
+    downsampled_cells = get_cell_position_from_coords(data, map_info)
+    neighbor_cells = np.array([[0, 1], [1, 0], [0, -1], [-1, 0]])
+    for cell in downsampled_cells:
+        delta = np.array([0, 0])
+        for neighbor_cell in neighbor_cells:
+            neighbor = cell + neighbor_cell
+            try:
+                if map_info.map[neighbor[1], neighbor[0]] == 255:
+                    delta += neighbor_cell
+            except IndexError:
+                pass
+        cell += delta
+    downsampled_data = get_coords_from_cell_position(downsampled_cells, map_info)
+    return downsampled_data
+
+
 def remove_isolate_frontiers(data, voxel_size):
-    differences = data[:, np.newaxis, :] - data[np.newaxis, :, :]
+    try:
+        differences = data[:, np.newaxis, :] - data[np.newaxis, :, :]
+    except IndexError:
+        return data
     distance_to_otherfrontiers = np.sqrt(np.sum(differences ** 2, axis=2))
     np.fill_diagonal(distance_to_otherfrontiers, np.inf)
     min_distance = np.min(distance_to_otherfrontiers, axis=1)
@@ -307,7 +330,8 @@ def check_cumulative_collision(start, end, map_info, max_collision=1):
 
 
 def make_gif(path, n, frame_files, rate):
-    with imageio.get_writer('{}/{}_explored_rate_{:.4g}.gif'.format(path, n, rate), mode='I', duration=0.5) as writer:
+    # with imageio.get_writer('{}/{}_explored_rate_{:.4g}.gif'.format(path, n, rate), mode='I', duration=0.5) as writer:
+    with imageio.get_writer('{}/{}_explored_rate_{:.4g}.mp4'.format(path, n, rate), fps=2) as writer:
         for frame in frame_files:
             image = imageio.imread(frame)
             writer.append_data(image)

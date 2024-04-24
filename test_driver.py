@@ -45,10 +45,12 @@ def run_test():
                 explored_rate_history.append(metrics['explored_rate'])
                 safe_rate_history.append(metrics['safe_rate'])
                 success_rate_history.append(metrics['success_rate'])
-            if curr_test < NUM_TEST:
-                job_list.append(meta_agents[info['id']].job.remote(weights, curr_test))
-                curr_test += 1
 
+                if curr_test < NUM_TEST:
+                    job_list.append(meta_agents[info['id']].job.remote(weights, curr_test))
+                    curr_test += 1
+
+        print('=====================================')
         print('|#Test:', FOLDER_NAME)
         print('|#Total test:', NUM_TEST)
         print('|#Average max length:', np.array(max_dist_history).mean())

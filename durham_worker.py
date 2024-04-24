@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from copy import deepcopy
+import ray
 
 from env import Env
 from agent import Agent
@@ -12,6 +13,9 @@ from sensor import coverage_sensor
 TEST_N_AGENTS = 4
 EXPLORATION = True
 # GROUP_START: change in test_parameter.py
+# MIN_UTILITY = 0  # !! change in test_parameter.py
+RAY_META_AGENT = 10
+NUM_TEST = 100
 
 MAX_EPISODE_STEP = 128
 SENSOR_RANGE = 20
@@ -29,7 +33,7 @@ class DurhamWorker:
         self.global_step = global_step
         self.save_image = save_image
         np.random.seed(123)
-        self.env = Env(global_step, n_agent=TEST_N_AGENTS, explore=EXPLORATION, plot=self.save_image, test=True)
+        self.env = Env(self.global_step, n_agent=TEST_N_AGENTS, explore=EXPLORATION, plot=self.save_image, test=True)
         self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=EXPLORATION, plot=self.save_image)
         self.robot_list = [Agent(i, None, self.node_manager, 'cpu', self.save_image) for i in range(self.env.n_agent)]
         self.utility = None
@@ -154,9 +158,10 @@ class DurhamWorker:
 
             selected_locations, _ = self.check_frontier_coverage(next_locations)
 
-            frontier_guards = [robot.id for robot in self.robot_list if self.agent_status[robot.id] == 1]
-            followers = [robot.id for robot in self.robot_list if self.agent_status[robot.id] == 0]
-            print(f"Step {i}\tFrontier guards: {frontier_guards}\tFollowers: {followers}")
+            if NUM_TEST == 1:
+                frontier_guards = [robot.id for robot in self.robot_list if self.agent_status[robot.id] == 1]
+                followers = [robot.id for robot in self.robot_list if self.agent_status[robot.id] == 0]
+                print(f"Step {i}\tFrontier guards: {frontier_guards}\tFollowers: {followers}")
 
             if self.save_image:
                 self.plot_local_env(i, best_locations)
@@ -191,10 +196,15 @@ class DurhamWorker:
                     self.plot_local_env(i+1, best_locations)
                 break
 
-        print(f"{TEST_N_AGENTS} agents, max travelled distance: {max_travel_dist}, explored rate: {self.env.explored_rate}, cleared rate: {self.env.safe_rate}")
+        if NUM_TEST == 1:
+            print(f"{TEST_N_AGENTS} agents, max travelled distance: {max_travel_dist}, explored rate: {self.env.explored_rate}, cleared rate: {self.env.safe_rate}")
 
         if self.save_image:
             make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.explored_rate)
+
+        perf_metrics = [max_travel_dist, self.env.explored_rate, self.env.safe_rate, done]
+
+        return perf_metrics
 
 
     def solve_path_confict(self, selected_locations, dist_list):
@@ -279,7 +289,68 @@ class DurhamWorker:
         frame = '{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step)
         self.env.frame_files.append(frame)
 
+@ray.remote(num_cpus=1, num_gpus=0)
+class DurhamWorkerParallel:
+    def __init__(self, meta_agent_id, save_image=False):
+        self.meta_agent_id = meta_agent_id
+        self.save_image = save_image
+
+    def job(self, episode_number):
+        print("starting episode {} on metaAgent {}".format(episode_number, self.meta_agent_id))
+        worker = DurhamWorker(self.meta_agent_id, episode_number, self.save_image)
+        metrics = worker.run_episode()
+        return metrics, self.meta_agent_id
+
 
 if __name__ == '__main__':
-    worker = DurhamWorker(0, 0, SAVE_IMG)
-    worker.run_episode()
+    curr_test = 0
+    max_dist_history = []
+    explored_rate_history = []
+    safe_rate_history = []
+    success_rate_history = []
+
+    if NUM_TEST == 1:
+        worker = DurhamWorker(0, curr_test, SAVE_IMG)
+        metrics = worker.run_episode()
+        max_dist_history.append(metrics[0])
+        explored_rate_history.append(metrics[1])
+        safe_rate_history.append(metrics[2])
+        success_rate_history.append(metrics[3])
+
+    else:
+        ray.init()
+        meta_agents = [DurhamWorkerParallel.remote(i, SAVE_IMG) for i in range(RAY_META_AGENT)]
+        run_list = []
+        for meta_agent in meta_agents:
+            run_list.append(meta_agent.job.remote(curr_test))
+            curr_test += 1
+
+        try:
+            while len(max_dist_history) < curr_test:
+                done_id, run_list = ray.wait(run_list)
+                done_runs = ray.get(done_id)
+
+                for res in done_runs:
+                    metrics, meta_id = res
+                    max_dist_history.append(metrics[0])
+                    explored_rate_history.append(metrics[1])
+                    safe_rate_history.append(metrics[2])
+                    success_rate_history.append(metrics[3])
+
+                    if curr_test < NUM_TEST:
+                        run_list.append(meta_agents[meta_id].job.remote(curr_test))
+                        curr_test += 1
+
+        except KeyboardInterrupt:
+            print("CTRL_C pressed. Killing remote workers")
+            for a in meta_agents:
+                ray.kill(a)
+
+    print('=====================================')
+    print('|#Test:', FOLDER_NAME)
+    print('|#Total test:', NUM_TEST)
+    print('|#Average max length:', np.array(max_dist_history).mean())
+    print('|#Std max length:', np.array(max_dist_history).std())
+    print('|#Average explored rate:', np.array(explored_rate_history).mean())
+    print('|#Average safe rate:', np.array(safe_rate_history).mean())
+    print('|#Average success rate:', np.array(success_rate_history).mean())

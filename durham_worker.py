@@ -136,7 +136,7 @@ class DurhamWorker:
         for robot in self.robot_list:
             robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
         for robot in self.robot_list:
-            robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers, self.env.counter_safe_info)
+            robot.update_safe_graph(self.env.safe_info)
         for robot in self.robot_list:
             robot.update_planning_state(self.env.robot_locations)
         if self.save_image:
@@ -173,13 +173,10 @@ class DurhamWorker:
 
             self.env.step(selected_locations)
 
-            self.env.classify_safe_frontier(selected_locations)
-
             for robot in self.robot_list:
                 robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
             for robot in self.robot_list:
-                robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers,
-                                        self.env.counter_safe_info)
+                robot.update_safe_graph(self.env.safe_info)
             for robot in self.robot_list:
                 robot.update_planning_state(self.env.robot_locations)
 
@@ -247,13 +244,9 @@ class DurhamWorker:
         plt.subplot(1, 2, 1)
         plt.imshow(self.env.robot_belief, cmap='gray')
 
-        self.env.classify_safe_frontier(self.env.robot_locations)
-        covered_safe_frontier_cells = get_cell_position_from_coords(self.env.covered_safe_frontiers, self.env.safe_info).reshape(-1, 2)
-        uncovered_safe_frontier_cells = get_cell_position_from_coords(self.env.uncovered_safe_frontiers, self.env.safe_info).reshape(-1, 2)
-        if covered_safe_frontier_cells.shape[0] != 0:
-            plt.scatter(covered_safe_frontier_cells[:, 0], covered_safe_frontier_cells[:, 1], c='g', s=1, zorder=6)  # 0.4, 1
-        if uncovered_safe_frontier_cells.shape[0] != 0:
-            plt.scatter(uncovered_safe_frontier_cells[:, 0], uncovered_safe_frontier_cells[:, 1], c='r', s=1, zorder=6)  # 0.4, 1
+        safe_frontier_cells = get_cell_position_from_coords(self.env.safe_zone_frontiers, self.env.safe_info).reshape(-1, 2)
+        if safe_frontier_cells.shape[0] != 0:
+            plt.scatter(safe_frontier_cells[:, 0], safe_frontier_cells[:, 1], c='g', s=1, zorder=6)  # 0.4, 1
 
         n_segments = len(self.robot_list[0].trajectory_x) - 1
         alpha_values = np.linspace(0.3, 1, n_segments)

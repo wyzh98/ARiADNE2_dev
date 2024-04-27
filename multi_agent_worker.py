@@ -163,9 +163,6 @@ class Multi_agent_worker:
             plt.plot((np.array(robot.trajectory_x) - robot.global_map_info.map_origin_x) / robot.cell_size,
                      (np.array(robot.trajectory_y) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
                      linewidth=2, zorder=3)
-            # guidepost = robot.local_node_coords[np.where(robot.guidepost == 1)[0]]
-            # guidepost_cell = get_cell_position_from_coords(guidepost, robot.global_map_info).reshape(-1, 2)
-            # plt.scatter(guidepost_cell[:, 0], guidepost_cell[:, 1], c=c, marker='*', s=11, zorder=7)
             if robot.id == 0:
                 nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
                 plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.explore_utility, zorder=2)
@@ -189,6 +186,9 @@ class Multi_agent_worker:
                 plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=alpha_mask)
                 plt.axis('off')
                 plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.safe_utility, zorder=2)
+                # guidepost = robot.local_node_coords[np.where(robot.guidepost == 1)[0]]
+                # guidepost_cell = get_cell_position_from_coords(guidepost, robot.global_map_info).reshape(-1, 2)
+                # plt.scatter(guidepost_cell[:, 0], guidepost_cell[:, 1], c=c, marker='*', s=11, zorder=7)
                 # for i, (x, y) in enumerate(nodes):
                 #     plt.text(x, y, f"{robot.safe_utility[i]}", fontsize=5, ha='center', va='center')
                 # signal = robot.local_node_coords[np.where(robot.signal == 1)[0]]
@@ -213,7 +213,7 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
-    # ckp = torch.load('model/advsearch_14_nogru/checkpoint.pth', map_location='cpu')
-    # policy_net.load_state_dict(ckp['policy_model'])
+    ckp = torch.load('model/advsearch_iros_reduced/checkpoint.pth', map_location='cpu')
+    policy_net.load_state_dict(ckp['policy_model'])
     worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
     worker.run_episode()

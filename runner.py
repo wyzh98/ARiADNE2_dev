@@ -48,7 +48,7 @@ class Runner(object):
         for k in metrics.keys():
             metrics[k] = (metrics[k] + metrics_rand[k]) / 2
 
-        info = {"id": self.meta_agent_id, "episode_number": episode_number}
+        info = {"id": self.meta_agent_id, "episode_number": episode_number, "dist_diff": dist_diff}
 
         return job_results, metrics, info
 

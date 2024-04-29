@@ -259,7 +259,7 @@ def main():
                     perf_data.append(np.nanmean(perf_metrics[n]))
                 data = [reward.mean().item(), value_prime.mean().item(), policy_loss.item(), q1_loss.item(),
                         entropy.mean().item(), policy_grad_norm.item(), q_grad_norm.item(), log_alpha.item(),
-                        alpha_loss.item(), *perf_data]
+                        alpha_loss.item(), info['dist_diff'], *perf_data]
                 training_data.append(data)
 
             # write record to tensorboard
@@ -305,6 +305,10 @@ def main():
                 torch.save(checkpoint, path_checkpoint)
                 print('Saved model', end='\n')
 
+            if curr_episode >= 40000:
+                print("Training finished at 40k")
+                break
+
     except KeyboardInterrupt:
         print("CTRL_C pressed. Killing remote workers")
         for a in meta_agents:
@@ -316,7 +320,7 @@ def main():
 def write_to_tensor_board(writer, tensorboard_data, curr_episode):
     tensorboard_data = np.array(tensorboard_data)
     tensorboard_data = list(np.nanmean(tensorboard_data, axis=0))
-    (reward, value, policy_loss, q_value_loss, entropy, policy_grad_norm, q_value_grad_norm, log_alpha, alpha_loss,
+    (reward, value, policy_loss, q_value_loss, entropy, policy_grad_norm, q_value_grad_norm, log_alpha, alpha_loss, dist_diff,
      travel_dist, max_travel_dist, success_rate, explored_rate, safe_rate, safe_increase_rate) = tensorboard_data
     metrics = { "Losses/Value": value,
                 "Losses/Policy Loss": policy_loss,
@@ -333,6 +337,7 @@ def write_to_tensor_board(writer, tensorboard_data, curr_episode):
                 "Perf/Explored Rate": explored_rate,
                 "Perf/Safe Rate": safe_rate,
                 "Perf/Safe Increase Percent": safe_increase_rate,
+                "Perf/Distance Difference": dist_diff,
                }
     for k, v in metrics.items():
         writer.add_scalar(k, v, curr_episode)

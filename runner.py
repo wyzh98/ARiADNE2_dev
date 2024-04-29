@@ -18,10 +18,10 @@ class Runner(object):
     def set_policy_net_weights(self, weights):
         self.local_network.load_state_dict(weights)
 
-    def do_job(self, episode_number):
+    def do_job(self, episode_number, explore=EXPLORATION, random_start=False):
         save_img = True if episode_number % SAVE_IMG_GAP == 0 else False
-        # save_img = True
-        worker = Multi_agent_worker(self.meta_agent_id, self.local_network, episode_number, device=self.device, save_image=save_img)
+        worker = Multi_agent_worker(self.meta_agent_id, self.local_network, episode_number, device=self.device,
+                                    save_image=save_img, explore=explore, rand_start=random_start)
         worker.run_episode()
 
         job_results = worker.episode_buffer
@@ -29,11 +29,24 @@ class Runner(object):
         return job_results, perf_metrics
 
     def job(self, weights_set, episode_number):
-        print("starting episode {} on metaAgent {}".format(episode_number, self.meta_agent_id))
+        print("starting episode {} (and +1) on metaAgent {}".format(episode_number, self.meta_agent_id))
         # set the local weights to the global weight values from the master network
         self.set_policy_net_weights(weights_set[0])
 
         job_results, metrics = self.do_job(episode_number)
+        job_results_rand, metrics_rand = self.do_job(episode_number, random_start=True)
+        # job_results_rand, metrics_rand = self.do_job(episode_number, explore=False)
+
+        dist_diff = metrics_rand['max_travel_dist'] - metrics['max_travel_dist']
+        reward_diff = dist_diff / 10
+        # reward_diff = (dist_diff + 20) / 10
+        job_results[7][-1] += reward_diff
+        job_results_rand[7][-1] -= reward_diff
+
+        for i in range(len(job_results)):
+            job_results[i] = job_results[i] + job_results_rand[i]
+        for k in metrics.keys():
+            metrics[k] = (metrics[k] + metrics_rand[k]) / 2
 
         info = {"id": self.meta_agent_id, "episode_number": episode_number}
 

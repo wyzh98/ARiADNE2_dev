@@ -4,7 +4,7 @@ train_path = f'train/{FOLDER_NAME}'
 gifs_path = f'gifs/{FOLDER_NAME}'
 SUMMARY_WINDOW = 2
 LOAD_MODEL = False  # do you want to load the model trained before
-SAVE_IMG_GAP = 1000
+SAVE_IMG_GAP = 10000
 
 N_AGENTS = 4
 

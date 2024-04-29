@@ -13,14 +13,13 @@ from utils import *
 
 
 class Env:
-    def __init__(self, episode_index, n_agent=N_AGENTS, explore=True, plot=False, test=False):
+    def __init__(self, episode_index, n_agent=N_AGENTS, explore=True, plot=False, test=False, rand_start=False):
         self.episode_index = episode_index
         self.plot = plot
         self.test = test
         self.n_agent = n_agent
-        self.explore = explore
 
-        self.ground_truth, initial_cell = self.import_ground_truth(episode_index)
+        self.ground_truth, initial_cell = self.import_ground_truth(episode_index, rand_start)
         self.cell_size = CELL_SIZE  # meter
         self.sensor_range = SENSOR_RANGE  # meter
         self.safety_range = SAFETY_RANGE  # meter
@@ -68,7 +67,7 @@ class Env:
             self.frame_files = []
 
 
-    def import_ground_truth(self, episode_index):
+    def import_ground_truth(self, episode_index, rand_start=False):
         if self.test:
             map_dir = f'maps_test'
         else:
@@ -82,6 +81,10 @@ class Env:
         robot_cell = np.array(np.nonzero(ground_truth == 208))
         # robot_cell = np.array(np.nonzero(ground_truth == 54))
         robot_cell = np.array([robot_cell[1, 10], robot_cell[0, 10]])
+        if rand_start:
+            robot_cell = np.array(np.nonzero(ground_truth == 195))
+            idx = np.random.randint(robot_cell.shape[1])
+            robot_cell = np.array([robot_cell[1, idx], robot_cell[0, idx]])
 
         ground_truth = (ground_truth > 150) | ((ground_truth <= 80) & (ground_truth >= 50))
         ground_truth = ground_truth * 254 + 1

@@ -16,15 +16,15 @@ if not os.path.exists(gifs_path):
 
 
 class Multi_agent_worker:
-    def __init__(self, meta_agent_id, policy_net, global_step, device='cpu', save_image=False):
+    def __init__(self, meta_agent_id, policy_net, global_step, device='cpu', save_image=False, explore=True, rand_start=False):
         self.meta_agent_id = meta_agent_id
         self.global_step = global_step
         self.save_image = save_image
         self.device = device
 
-        self.env = Env(global_step, explore=EXPLORATION, plot=self.save_image)
+        self.env = Env(global_step, explore=explore, plot=self.save_image, rand_start=rand_start)
         self.n_agent = N_AGENTS
-        self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=EXPLORATION, plot=self.save_image)
+        self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=explore, plot=self.save_image)
 
         self.robot_list = [Agent(i, policy_net, self.node_manager, self.device, self.save_image) for i in range(self.n_agent)]
 

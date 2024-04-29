@@ -109,25 +109,6 @@ class NodeManager:
         safe_utility = np.array(safe_utility)
         signal = np.array(signal)
 
-        indices = np.argwhere(safe_utility > 0).reshape(-1)
-        utility_node_coords = all_node_coords[indices]
-        dist_dict, prev_dict = self.Dijkstra(robot_location)
-        nearest_utility_coords = robot_location
-        nearest_dist = 1e8
-        for coords in utility_node_coords:
-            if coords[0] != robot_location[0] or coords[1] != robot_location[1]:
-                dist = dist_dict[(coords[0], coords[1])]
-                if dist < nearest_dist:
-                    nearest_dist = dist
-                    nearest_utility_coords = coords
-                # print(nearest_dist, coords, nearest_utility_coords, robot_location)
-        path_coords, dist = self.a_star(robot_location, nearest_utility_coords)
-        guidepost = np.zeros_like(explore_utility)
-        for coords in path_coords:
-            if coords[0] != robot_location[0] or coords[1] != robot_location[1]:
-                index = np.argwhere(all_node_coords[:, 0] + all_node_coords[:, 1] * 1j == coords[0] + coords[1] * 1j)[0]
-                guidepost[index] = 1
-
         robot_in_graph = self.local_nodes_dict.nearest_neighbors(robot_location.tolist(), 1)[0].data.coords
         current_index = np.argwhere(local_node_coords_to_check == robot_in_graph[0] + robot_in_graph[1] * 1j)[0][0]
         neighbor_indices = np.argwhere(adjacent_matrix[current_index] == 0).reshape(-1)
@@ -138,6 +119,16 @@ class NodeManager:
             index = np.argwhere(local_node_coords_to_check == location_in_graph[0] + location_in_graph[1] * 1j)[0][0]
             if index != current_index:
                 occupancy[index] = 1
+
+        guidepost = np.zeros_like(explore_utility)
+        for other_location in robot_locations:
+            if other_location[0] != robot_location[0] or other_location[1] != robot_location[1]:
+                path_coords, dist = self.a_star(robot_location, other_location)
+                for coords in path_coords:
+                    if coords[0] != robot_location[0] or coords[1] != robot_location[1]:
+                        index = np.argwhere(all_node_coords[:, 0] + all_node_coords[:, 1] * 1j == coords[0] + coords[1] * 1j)[0]
+                        guidepost[index] = 1
+
         return all_node_coords, explore_utility, safe_utility, guidepost, signal, occupancy, adjacent_matrix, current_index, neighbor_indices
 
     def get_underlying_node_graph(self, all_node_coords):

@@ -264,7 +264,7 @@ def main():
 
             # write record to tensorboard
             if len(training_data) >= SUMMARY_WINDOW:
-                write_to_tensor_board(writer, training_data, curr_episode)
+                write_to_tensor_board(writer, training_data, curr_episode * 2)  # dual episode
                 training_data = []
                 perf_metrics = {}
                 for n in metric_name:

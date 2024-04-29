@@ -29,7 +29,7 @@ class Runner(object):
         return job_results, perf_metrics
 
     def job(self, weights_set, episode_number):
-        print("starting episode {} (and +1) on metaAgent {}".format(episode_number, self.meta_agent_id))
+        print("starting episode {} (and +1) on metaAgent {}".format(episode_number * 2, self.meta_agent_id))  # dual episode
         # set the local weights to the global weight values from the master network
         self.set_policy_net_weights(weights_set[0])
 

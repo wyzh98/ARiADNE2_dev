@@ -330,8 +330,8 @@ def check_cumulative_collision(start, end, map_info, max_collision=1):
 
 
 def make_gif(path, n, frame_files, rate):
-    # with imageio.get_writer('{}/{}_explored_rate_{:.4g}.gif'.format(path, n, rate), mode='I', duration=0.5) as writer:
-    with imageio.get_writer('{}/{}_explored_rate_{:.4g}.mp4'.format(path, n, rate), fps=2) as writer:
+    with imageio.get_writer('{}/{}_explored_rate_{:.4g}.gif'.format(path, n, rate), mode='I', duration=0.5) as writer:
+    # with imageio.get_writer('{}/{}_explored_rate_{:.4g}.mp4'.format(path, n, rate), fps=2) as writer:
         for frame in frame_files:
             image = imageio.imread(frame)
             writer.append_data(image)

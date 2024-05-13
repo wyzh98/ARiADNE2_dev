@@ -305,6 +305,10 @@ def main():
                 torch.save(checkpoint, path_checkpoint)
                 print('Saved model', end='\n')
 
+            if curr_episode >= 40000:
+                print("Training finished at 40k")
+                break
+
     except KeyboardInterrupt:
         print("CTRL_C pressed. Killing remote workers")
         for a in meta_agents:

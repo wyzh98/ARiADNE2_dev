@@ -151,7 +151,7 @@ class TestWorker:
                                                                                                 max([robot.travel_dist for robot in self.robot_list])))
         plt.tight_layout()
         # plt.show()
-        plt.savefig('{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step))
+        plt.savefig('{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step), dpi=150)
         plt.close()
         frame = '{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step)
         self.env.frame_files.append(frame)

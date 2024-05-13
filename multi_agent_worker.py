@@ -57,12 +57,6 @@ class Multi_agent_worker:
 
                 next_location, next_node_index, action_index = robot.select_next_waypoint(local_observation)
                 robot.save_action(action_index)
-
-                node = robot.node_manager.local_nodes_dict.find((robot.location[0], robot.location[1]))
-                check = np.array(node.data.neighbor_list)
-                assert next_location[0] + next_location[1] * 1j in check[:, 0] + check[:, 1] * 1j, print(next_location,
-                                                                                                         robot.location,
-                                                                                                         node.data.neighbor_list)
                 selected_locations.append(next_location)
                 dist_list.append(np.linalg.norm(next_location - robot.location))
                 next_node_index_list.append(next_node_index)
@@ -199,7 +193,7 @@ class Multi_agent_worker:
             plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=13, zorder=5)
 
         plt.axis('off')
-        plt.suptitle('Explored ratio: {:.4g} | Safe ratio: {:.4g} | Travel distance: {:.4g}'.format(self.env.explored_rate,
+        plt.suptitle('Explored rate: {:.4g} | Cleared rate: {:.4g} | Trajectory length: {:.4g}'.format(self.env.explored_rate,
                                                                                                 self.env.safe_rate,
                                                                                                 max([robot.travel_dist for robot in self.robot_list])))
         plt.tight_layout()

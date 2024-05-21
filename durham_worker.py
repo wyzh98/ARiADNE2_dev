@@ -6,7 +6,7 @@ import ray
 from env import Env
 from agent import Agent
 from utils import *
-from local_node_manager_quadtree import NodeManager
+from node_manager_quadtree import NodeManager
 from sensor import coverage_sensor
 
 

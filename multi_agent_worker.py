@@ -9,7 +9,7 @@ from agent import Agent
 from parameter import *
 from utils import *
 from model import PolicyNet
-from local_node_manager_quadtree import NodeManager
+from node_manager_quadtree import NodeManager
 
 if not os.path.exists(gifs_path):
     os.makedirs(gifs_path)
@@ -145,41 +145,20 @@ class Multi_agent_worker:
 
     def plot_local_env(self, step):
         plt.switch_backend('agg')
-        plt.figure(figsize=(11, 5))
-        plt.subplot(1, 2, 2)
-        plt.imshow(self.env.robot_belief, cmap='gray', vmin=0)
-        plt.axis('off')
-        color_list = ['r', 'b', 'g', 'y']
-        for robot in self.robot_list:
-            c = color_list[robot.id]
-            robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
-            plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=13, zorder=5)
-            plt.plot((np.array(robot.trajectory_x) - robot.global_map_info.map_origin_x) / robot.cell_size,
-                     (np.array(robot.trajectory_y) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
-                     linewidth=2, zorder=3)
-            if robot.id == 0:
-                nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
-                plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.explore_utility, zorder=2)
+        plt.figure(figsize=(12, 4))
+        color_list = ['r', 'b', 'g', 'y', 'm', 'c', 'k', 'w', (1,0.5,0.5), (0.2,0.5,0.7)]
 
-        if self.env.explore_frontiers.shape[0] != 0:
-            explore_frontier_cells = get_cell_position_from_coords(self.env.explore_frontiers, self.env.belief_info).reshape(-1, 2)
-            plt.scatter(explore_frontier_cells[:, 0], explore_frontier_cells[:, 1], c='b', s=1, zorder=6)
-
-        plt.subplot(1, 2, 1)
+        plt.subplot(1, 3, 1)
         plt.imshow(self.env.robot_belief, cmap='gray')
+        plt.axis('off')
 
-        safe_frontier_cells = get_cell_position_from_coords(self.env.safe_zone_frontiers, self.env.safe_info).reshape(-1, 2)
-        if safe_frontier_cells.shape[0] != 0:
-            plt.scatter(safe_frontier_cells[:, 0], safe_frontier_cells[:, 1], c='g', s=1, zorder=6)  # 0.4, 1
-
+        n_segments = len(self.robot_list[0].trajectory_x) - 1
+        alpha_values = np.linspace(0.3, 1, n_segments)
         for robot in self.robot_list:
             c = color_list[robot.id]
             if robot.id == 0:
-                nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
                 alpha_mask = robot.safe_zone_info.map / 255 / 3
                 plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=alpha_mask)
-                plt.axis('off')
-                plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.safe_utility, zorder=2)
                 # guidepost = robot.local_node_coords[np.where(robot.guidepost == 1)[0]]
                 # guidepost_cell = get_cell_position_from_coords(guidepost, robot.global_map_info).reshape(-1, 2)
                 # plt.scatter(guidepost_cell[:, 0], guidepost_cell[:, 1], c=c, marker='*', s=11, zorder=7)
@@ -190,9 +169,57 @@ class Multi_agent_worker:
                 # plt.scatter(signal_cell[:, 0], signal_cell[:, 1], c='w', marker='.', s=2, zorder=3, alpha=0.5)
 
             robot_cell = get_cell_position_from_coords(robot.location, robot.safe_zone_info)
-            plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=13, zorder=5)
+            plt.plot(robot_cell[0], robot_cell[1], c=c, marker='o', markersize=10, zorder=5)  # 5,10
 
+            for i in range(n_segments):
+                plt.plot((np.array(robot.trajectory_x[i:i + 2]) - robot.global_map_info.map_origin_x) / robot.cell_size,
+                         (np.array(robot.trajectory_y[i:i + 2]) - robot.global_map_info.map_origin_y) / robot.cell_size,
+                         c, linewidth=2, alpha=alpha_values[i], zorder=3)  # 1,2
+
+        plt.subplot(1, 3, 2)
+        plt.imshow(self.env.robot_belief, cmap='gray', vmin=0)
         plt.axis('off')
+        for robot in self.robot_list:
+            c = color_list[robot.id]
+            robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
+            plt.plot(robot_cell[0], robot_cell[1], c=c, marker='o', markersize=10, zorder=5)
+            # plt.plot((np.array(robot.trajectory_x) - robot.global_map_info.map_origin_x) / robot.cell_size,
+            #          (np.array(robot.trajectory_y) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
+            #          linewidth=2, zorder=3)
+            if robot.id == 0:
+                alpha_mask = robot.safe_zone_info.map / 255 / 3
+                plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=alpha_mask)
+                nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
+                plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.safe_utility, s=10, zorder=2)
+
+        if self.env.explore_frontiers.shape[0] != 0:
+            explore_frontier_cells = get_cell_position_from_coords(self.env.explore_frontiers, self.env.belief_info).reshape(-1, 2)
+            plt.scatter(explore_frontier_cells[:, 0], explore_frontier_cells[:, 1], c='b', s=1, zorder=5)
+        if self.env.safe_zone_frontiers.shape[0] != 0:
+            safe_frontier_cells = get_cell_position_from_coords(self.env.safe_zone_frontiers, self.env.safe_info).reshape(-1, 2)
+            plt.scatter(safe_frontier_cells[:, 0], safe_frontier_cells[:, 1], c='g', s=1, zorder=6)
+
+        plt.subplot(1, 3, 3)
+        plt.imshow(self.env.robot_belief, cmap='gray', vmin=0)
+        plt.axis('off')
+        robot = self.robot_list[0]
+        nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
+        # for i in range(nodes.shape[0]):
+        #     for j in range(i + 1, nodes.shape[0]):
+        #         if robot.local_adjacent_matrix[i, j] == 0:
+        #             plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.988, 0.557, 0.675),
+        #                      linewidth=1.5, zorder=1)
+        for i in range(nodes.shape[0]):
+            for j in range(i + 1, nodes.shape[0]):
+                if robot.global_adjacent_matrix[i, j] == 0:
+                    plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c='b', linewidth=2, zorder=4)
+        for i, clique in enumerate(robot.global_clique_indices):
+            clique_coords = get_cell_position_from_coords(robot.local_node_coords[clique], robot.safe_zone_info)
+            rand_c = np.random.rand(3).reshape(1, -1)
+            plt.scatter(clique_coords[:, 0], clique_coords[:, 1], c=rand_c, s=10, zorder=3)
+            clique_center = get_cell_position_from_coords(robot.global_node_coords[i], robot.safe_zone_info)
+            plt.scatter(clique_center[0], clique_center[1], c=rand_c, s=80, zorder=5)
+
         plt.suptitle('Explored rate: {:.4g} | Cleared rate: {:.4g} | Trajectory length: {:.4g}'.format(self.env.explored_rate,
                                                                                                 self.env.safe_rate,
                                                                                                 max([robot.travel_dist for robot in self.robot_list])))

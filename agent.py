@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from utils import *
 from parameter import *
-from local_node_manager_quadtree import NodeManager
+from node_manager_quadtree import NodeManager
 
 
 class Agent:
@@ -44,10 +44,13 @@ class Agent:
 
         # local graph
         self.local_node_coords, self.explore_utility, self.safe_utility, self.guidepost, self.signal, self.occupancy = None, None, None, None, None, None
-        self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices = None, None, None
+        self.current_local_index, self.local_adjacent_matrix, self.local_visible_matrix, self.local_neighbor_indices = None, None, None, None
+
+        # global graph
+        self.global_node_coords, self.global_adjacent_matrix, self.global_clique_indices = None, None, None
 
         # ground truth graph (only for critic)
-        self.true_node_coords, self.true_adjacent_matrix = None, None
+        self.true_node_coords, self.true_adjacent_matrix, self.true_visible_matrix = None, None, None
 
         self.travel_dist = 0
 
@@ -109,11 +112,12 @@ class Agent:
         self.node_manager.update_local_safe_graph(self.location, self.safe_frontier, self.extended_local_safe_zone_info, self.extended_local_map_info)
 
     def update_planning_state(self, robot_locations):
-        (self.local_node_coords, self.explore_utility, self.safe_utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix,
+        (self.local_node_coords, self.explore_utility, self.safe_utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix, self.local_visible_matrix,
          self.current_local_index, self.local_neighbor_indices) = self.node_manager.get_all_node_graph(self.location, robot_locations)
+        self.global_node_coords, self.global_adjacent_matrix, self.global_clique_indices = self.node_manager.get_global_node_graph(self.local_visible_matrix)
 
     def update_underlying_state(self):
-        self.true_node_coords, self.true_adjacent_matrix = self.node_manager.get_underlying_node_graph(self.local_node_coords)
+        self.true_node_coords, self.true_adjacent_matrix, self.true_visible_matrix = self.node_manager.get_underlying_node_graph(self.local_node_coords)
 
     def get_local_observation(self, pad=True):
         local_node_coords = self.local_node_coords

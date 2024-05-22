@@ -179,16 +179,24 @@ class NodeManager:
 
         return ground_truth_coords, ground_truth_adjacent_matrix, ground_truth_visible_matrix
 
-    def get_global_node_graph(self, visible_matrix, max_hop=1):
+    def get_global_node_graph(self, visible_matrix, ground_truth=False, max_hop=1):
         visible_matrix = 1 - visible_matrix
-        all_node_coords = []
+        node_coords = []
         for node in self.local_nodes_dict.__iter__():
-            all_node_coords.append(node.data.coords)
-        all_node_coords = np.array(all_node_coords).reshape(-1, 2)
+            node_coords.append(node.data.coords)
+        node_coords = np.array(node_coords).reshape(-1, 2)
 
-        cliques = self.find_cliques(all_node_coords, visible_matrix)
-        center_indices = self.calc_clique_center(all_node_coords, cliques)
-        global_node_coords = all_node_coords[center_indices]
+        if ground_truth:
+            node_coords = node_coords.tolist()
+            for node in self.ground_truth_nodes_dict.__iter__():
+                coords = node.data.coords
+                if not (coords == node_coords).all(1).any(0):
+                    node_coords.append(coords)
+            node_coords = np.array(node_coords).reshape(-1, 2)
+
+        cliques = self.find_cliques(node_coords, visible_matrix)
+        center_indices = self.calc_clique_center(node_coords, cliques)
+        global_node_coords = node_coords[center_indices]
 
         G = nx.from_numpy_array(visible_matrix)
         global_adj_matrix = np.zeros((len(center_indices), len(center_indices)))

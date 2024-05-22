@@ -51,6 +51,7 @@ class Agent:
 
         # ground truth graph (only for critic)
         self.true_node_coords, self.true_adjacent_matrix, self.true_visible_matrix = None, None, None
+        self.true_global_node_coords, self.true_global_adjacent_matrix, self.true_global_clique_indices = None, None, None
 
         self.travel_dist = 0
 
@@ -114,10 +115,13 @@ class Agent:
     def update_planning_state(self, robot_locations):
         (self.local_node_coords, self.explore_utility, self.safe_utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix, self.local_visible_matrix,
          self.current_local_index, self.local_neighbor_indices) = self.node_manager.get_all_node_graph(self.location, robot_locations)
-        self.global_node_coords, self.global_adjacent_matrix, self.global_clique_indices = self.node_manager.get_global_node_graph(self.local_visible_matrix)
+        self.global_node_coords, self.global_adjacent_matrix, self.global_clique_indices = self.node_manager.get_global_node_graph(
+            self.local_visible_matrix, ground_truth=False)
 
     def update_underlying_state(self):
         self.true_node_coords, self.true_adjacent_matrix, self.true_visible_matrix = self.node_manager.get_underlying_node_graph(self.local_node_coords)
+        self.true_global_node_coords, self.true_global_adjacent_matrix, self.true_global_clique_indices = self.node_manager.get_global_node_graph(
+            self.true_visible_matrix, ground_truth=True)
 
     def get_local_observation(self, pad=True):
         local_node_coords = self.local_node_coords
@@ -177,43 +181,42 @@ class Agent:
         return [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask]
 
     def get_state(self):
-        global_node_coords = self.true_node_coords
-        global_node_safe_utility = self.safe_utility.reshape(-1, 1)
-        global_node_guidepost = self.guidepost.reshape(-1, 1)
-        global_node_occupancy = self.occupancy.reshape(-1, 1)
-        global_node_signal = self.signal.reshape(-1, 1)
-        global_edge_mask = self.true_adjacent_matrix
-        n_global_node = global_node_coords.shape[0]
+        node_coords = self.true_node_coords
+        node_safe_utility = self.safe_utility.reshape(-1, 1)
+        node_guidepost = self.guidepost.reshape(-1, 1)
+        node_occupancy = self.occupancy.reshape(-1, 1)
+        node_signal = self.signal.reshape(-1, 1)
+        edge_mask = self.true_adjacent_matrix
+        n_global_node = node_coords.shape[0]
         n_padding = n_global_node - self.local_node_coords.shape[0]
 
-        global_node_safe_utility = np.pad(global_node_safe_utility, ((0, n_padding), (0, 0)), mode='constant', constant_values=-30)
-        global_node_guidepost = np.pad(global_node_guidepost, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
-        global_node_occupancy = np.pad(global_node_occupancy, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
-        global_node_signal = np.pad(global_node_signal, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
+        node_safe_utility = np.pad(node_safe_utility, ((0, n_padding), (0, 0)), mode='constant', constant_values=-30)
+        node_guidepost = np.pad(node_guidepost, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
+        node_occupancy = np.pad(node_occupancy, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
+        node_signal = np.pad(node_signal, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
 
-        current_global_node_coords = global_node_coords[self.current_local_index]
-        global_node_coords = np.concatenate((global_node_coords[:, 0].reshape(-1, 1) - current_global_node_coords[0],
-                                             global_node_coords[:, 1].reshape(-1, 1) - current_global_node_coords[1]),
-                                            axis=-1) / LOCAL_MAP_SIZE
-        global_node_safe_utility = global_node_safe_utility / 30
-        global_node_inputs = np.concatenate((global_node_coords, global_node_safe_utility, global_node_guidepost, global_node_signal, global_node_occupancy), axis=1)
-        global_node_inputs = torch.FloatTensor(global_node_inputs).unsqueeze(0).to(self.device)
+        current_global_node_coords = node_coords[self.current_local_index]
+        node_coords = np.concatenate((node_coords[:, 0].reshape(-1, 1) - current_global_node_coords[0],
+                                      node_coords[:, 1].reshape(-1, 1) - current_global_node_coords[1]),
+                                     axis=-1) / LOCAL_MAP_SIZE
+        node_safe_utility = node_safe_utility / 30
+        node_inputs = np.concatenate((node_coords, node_safe_utility, node_guidepost, node_signal, node_occupancy), axis=1)
+        node_inputs = torch.FloatTensor(node_inputs).unsqueeze(0).to(self.device)
 
         padding = torch.nn.ZeroPad2d((0, 0, 0, LOCAL_NODE_PADDING_SIZE - n_global_node))
-        global_node_inputs = padding(global_node_inputs)
+        node_inputs = padding(node_inputs)
 
-        global_node_padding_mask = torch.zeros((1, 1, n_global_node), dtype=torch.int16).to(self.device)
-        global_node_padding = torch.ones((1, 1, LOCAL_NODE_PADDING_SIZE - n_global_node), dtype=torch.int16).to(
-            self.device)
-        global_node_padding_mask = torch.cat((global_node_padding_mask, global_node_padding), dim=-1)
+        node_padding_mask = torch.zeros((1, 1, n_global_node), dtype=torch.int16).to(self.device)
+        node_padding = torch.ones((1, 1, LOCAL_NODE_PADDING_SIZE - n_global_node), dtype=torch.int16).to(self.device)
+        node_padding_mask = torch.cat((node_padding_mask, node_padding), dim=-1)
 
-        global_edge_mask = torch.tensor(global_edge_mask).unsqueeze(0).to(self.device)
+        edge_mask = torch.tensor(edge_mask).unsqueeze(0).to(self.device)
 
         padding = torch.nn.ConstantPad2d(
             (0, LOCAL_NODE_PADDING_SIZE - n_global_node, 0, LOCAL_NODE_PADDING_SIZE - n_global_node), 1)
-        global_edge_mask = padding(global_edge_mask)
+        edge_mask = padding(edge_mask)
 
-        return [global_node_inputs, global_node_padding_mask, global_edge_mask]
+        return [node_inputs, node_padding_mask, edge_mask]
 
     def select_next_waypoint(self, local_observation, greedy=False):
         _, _, _, _, current_local_edge, _ = local_observation

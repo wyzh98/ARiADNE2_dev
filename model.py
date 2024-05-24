@@ -203,19 +203,47 @@ class Decoder(nn.Module):
 
 
 class PolicyNet(nn.Module):
-    def __init__(self, local_node_dim, embedding_dim):
+    def __init__(self, node_dim, embedding_dim):
         super(PolicyNet, self).__init__()
 
-        # local graph encoder
-        self.initial_local_embedding = nn.Linear(local_node_dim, embedding_dim)
+        # graph encoder
+        self.initial_global_embedding = nn.Linear(node_dim - 1, embedding_dim)
+        self.initial_local_embedding = nn.Linear(node_dim, embedding_dim)
+
         self.local_encoder = Encoder(embedding_dim=embedding_dim, n_head=4, n_layer=6)
+        self.global_encoder = Encoder(embedding_dim=embedding_dim, n_head=4, n_layer=6)
 
         # decoder
         self.local_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
-        self.current_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
+        self.global_current_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
+        self.local_current_embedding = nn.Linear(embedding_dim * 3, embedding_dim)
 
         # pointer
-        self.pointer = SingleHeadAttention(embedding_dim)
+        self.global_pointer = SingleHeadAttention(embedding_dim)
+        self.local_pointer = SingleHeadAttention(embedding_dim)
+
+    def encode_global_graph(self, global_node_inputs, global_node_padding_mask, global_edge_mask):
+        global_node_feature = self.initial_global_embedding(global_node_inputs)
+        enhanced_global_node_feature = self.global_encoder(src=global_node_feature,
+                                                           key_padding_mask=global_node_padding_mask,
+                                                           attn_mask=global_edge_mask)
+        return enhanced_global_node_feature
+
+    def select_global_node(self, enhanced_global_node_feature, current_global_index, current_global_edge, global_edge_padding_mask):
+        embedding_dim = enhanced_global_node_feature.size()[2]
+        current_global_node_feature = torch.gather(enhanced_global_node_feature, 1,
+                                                   current_global_index.repeat(1, 1, embedding_dim))
+        global_neighbor_feature = torch.gather(enhanced_global_node_feature, 1,
+                                               current_global_edge.repeat(1, 1, embedding_dim))
+        global_logp = self.global_pointer(current_global_node_feature, global_neighbor_feature, global_edge_padding_mask)
+        global_logp_index = torch.argmax(global_logp, dim=-1)
+        selected_global_node_feature = torch.gather(global_neighbor_feature, 1,
+                                                    global_logp_index.unsqueeze(-1).repeat(1, 1, embedding_dim))
+        selected_global_node_feature = self.global_current_embedding(torch.cat((current_global_node_feature,
+                                                                               selected_global_node_feature), dim=-1))
+
+        return selected_global_node_feature, global_logp_index
+
 
     def encode_local_graph(self, local_node_inputs, local_node_padding_mask, local_edge_mask):
         local_node_feature = self.initial_local_embedding(local_node_inputs)
@@ -235,47 +263,77 @@ class PolicyNet(nn.Module):
 
         return current_local_node_feature, enhanced_current_local_node_feature
 
-    def output_policy(self, current_local_node_feature, enhanced_current_local_node_feature,
-                      enhanced_local_node_feature, current_local_edge, local_edge_padding_mask):
+    def output_policy(self, current_local_node_feature, enhanced_current_local_node_feature, enhanced_local_node_feature,
+                      selected_global_node_feature, current_local_edge, local_edge_padding_mask):
         embedding_dim = enhanced_local_node_feature.size()[2]
-        current_state_feature = current_local_node_feature
-        #current_state_feature = self.current_embedding(torch.cat((enhanced_current_local_node_feature,
-        #                                                         current_local_node_feature), dim=-1))
+        current_state_feature = self.local_current_embedding(torch.cat((enhanced_current_local_node_feature,
+                                                                        current_local_node_feature,
+                                                                        selected_global_node_feature), dim=-1))
 
         neighboring_feature = torch.gather(enhanced_local_node_feature, 1,
                                            current_local_edge.repeat(1, 1, embedding_dim))
 
-        logp = self.pointer(current_state_feature, neighboring_feature, local_edge_padding_mask)
+        logp = self.local_pointer(current_state_feature, neighboring_feature, local_edge_padding_mask)
         logp = logp.squeeze(1)
 
         return logp
 
     # @torch.compile
-    def forward(self, local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index,
-                current_local_edge, local_edge_padding_mask):
+    def forward(self, local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask,
+                global_node_inputs, global_node_padding_mask, global_edge_mask, current_global_index, current_global_edge, global_edge_padding_mask):
+        enhanced_global_node_feature = self.encode_global_graph(global_node_inputs, global_node_padding_mask, global_edge_mask)
+        selected_global_node_feature, global_logp_index = self.select_global_node(enhanced_global_node_feature, current_global_index,
+                                                                                  current_global_edge, global_edge_padding_mask)
         enhanced_local_node_feature = self.encode_local_graph(local_node_inputs, local_node_padding_mask, local_edge_mask)
-        current_local_node_feature, enhanced_current_local_node_feature = self.decode_local_state(
-            enhanced_local_node_feature, current_local_index, local_node_padding_mask)
-        logp = self.output_policy(current_local_node_feature, enhanced_current_local_node_feature,
-                                  enhanced_local_node_feature, current_local_edge, local_edge_padding_mask)
+        current_local_node_feature, enhanced_current_local_node_feature = self.decode_local_state(enhanced_local_node_feature,
+                                                                                                  current_local_index, local_node_padding_mask)
+        logp = self.output_policy(current_local_node_feature, enhanced_current_local_node_feature, enhanced_local_node_feature,
+                                  selected_global_node_feature, current_local_edge, local_edge_padding_mask)
 
-        return logp
+        return logp, global_logp_index
 
 
 class QNet(nn.Module):
-    def __init__(self, local_node_dim, embedding_dim):
+    def __init__(self, node_dim, embedding_dim):
         super(QNet, self).__init__()
 
-        # local graph encoder
-        self.initial_local_embedding = nn.Linear(local_node_dim, embedding_dim)
+        # graph encoder
+        self.initial_global_embedding = nn.Linear(node_dim - 1, embedding_dim)
+        self.initial_local_embedding = nn.Linear(node_dim, embedding_dim)
+
+        self.global_encoder = Encoder(embedding_dim=embedding_dim, n_head=4, n_layer=6)
         self.local_encoder = Encoder(embedding_dim=embedding_dim, n_head=4, n_layer=6)
 
         # decoder
         self.local_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
         self.agent_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
+        self.global_current_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
         self.all_agent_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
 
-        self.q_values_layer = nn.Linear(embedding_dim * 4, 1)
+        self.global_pointer = SingleHeadAttention(embedding_dim)
+        self.q_values_layer = nn.Linear(embedding_dim * 5, 1)
+
+    def encode_global_graph(self, global_node_inputs, global_node_padding_mask, global_edge_mask):
+        global_node_feature = self.initial_global_embedding(global_node_inputs)
+        enhanced_global_node_feature = self.global_encoder(src=global_node_feature,
+                                                           key_padding_mask=global_node_padding_mask,
+                                                           attn_mask=global_edge_mask)
+        return enhanced_global_node_feature
+
+    def select_global_node(self, enhanced_global_node_feature, current_global_index, current_global_edge, global_edge_padding_mask):
+        embedding_dim = enhanced_global_node_feature.size()[2]
+        current_global_node_feature = torch.gather(enhanced_global_node_feature, 1,
+                                                   current_global_index.repeat(1, 1, embedding_dim))
+        global_neighbor_feature = torch.gather(enhanced_global_node_feature, 1,
+                                               current_global_edge.repeat(1, 1, embedding_dim))
+        global_logp = self.global_pointer(current_global_node_feature, global_neighbor_feature, global_edge_padding_mask)
+        global_logp_index = torch.argmax(global_logp, dim=-1)
+        selected_global_node_feature = torch.gather(global_neighbor_feature, 1,
+                                                    global_logp_index.unsqueeze(-1).repeat(1, 1, embedding_dim))
+        selected_global_node_feature = self.global_current_embedding(torch.cat((current_global_node_feature,
+                                                                               selected_global_node_feature), dim=-1))
+
+        return selected_global_node_feature, global_logp_index
 
     def encode_local_graph(self, local_node_inputs, local_node_padding_mask, local_edge_mask):
         local_node_feature = self.initial_local_embedding(local_node_inputs)
@@ -296,11 +354,9 @@ class QNet(nn.Module):
         return current_local_node_feature, enhanced_current_local_node_feature
 
     def output_q(self, current_local_node_feature, enhanced_current_local_node_feature, enhanced_local_node_feature,
-                 current_local_edge, current_local_index, all_agent_indices, all_agent_next_indices):
+                 selected_global_node_feature, current_local_edge, current_local_index, all_agent_indices, all_agent_next_indices):
         embedding_dim = enhanced_local_node_feature.size()[2]
         k_size = current_local_edge.size()[1]
-        current_state_feature = current_local_node_feature
-        enhanced_current_state_feature = enhanced_current_local_node_feature
 
         neighboring_feature = torch.gather(enhanced_local_node_feature, 1, current_local_edge.repeat(1, 1, embedding_dim))
 
@@ -308,16 +364,16 @@ class QNet(nn.Module):
         all_agent_selected_neighboring_feature = torch.gather(enhanced_local_node_feature, 1,
                                                               all_agent_next_indices.repeat(1, 1, embedding_dim))
 
-        all_agent_action_features = torch.cat((all_agent_node_feature, all_agent_selected_neighboring_feature), dim=-1)
+        all_agent_action_features = torch.cat((all_agent_node_feature, all_agent_selected_neighboring_feature), dim=-1)  # TODO: add all agent global feature
         all_agent_action_features = self.all_agent_embedding(all_agent_action_features)
 
         agent_mask = all_agent_indices == current_local_index
 
-        global_state_action_feature, _ = self.agent_decoder(current_state_feature, all_agent_action_features,
-                                                            agent_mask)
+        global_state_action_feature, _ = self.agent_decoder(current_local_node_feature, all_agent_action_features, agent_mask)
 
-        action_features = torch.cat((current_state_feature.repeat(1, k_size, 1),
-                                     enhanced_current_state_feature.repeat(1, k_size, 1),
+        action_features = torch.cat((current_local_node_feature.repeat(1, k_size, 1),
+                                     enhanced_current_local_node_feature.repeat(1, k_size, 1),
+                                     selected_global_node_feature.repeat(1, k_size, 1),
                                      global_state_action_feature.repeat(1, k_size, 1),
                                      neighboring_feature), dim=-1)
 
@@ -325,12 +381,15 @@ class QNet(nn.Module):
         return q_values
 
     # @torch.compile
-    def forward(self, local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index,
-                current_local_edge, all_agent_indices, all_agent_next_indices):
+    def forward(self, local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, all_agent_indices, all_agent_next_indices,
+                global_node_inputs, global_node_padding_mask, global_edge_mask, current_global_index, current_global_edge, global_edge_padding_mask):
+        enhanced_global_node_feature = self.encode_global_graph(global_node_inputs, global_node_padding_mask, global_edge_mask)
+        selected_global_node_feature, _ = self.select_global_node(enhanced_global_node_feature, current_global_index,
+                                                                  current_global_edge, global_edge_padding_mask)
         enhanced_local_node_feature = self.encode_local_graph(local_node_inputs, local_node_padding_mask, local_edge_mask)
         current_local_node_feature, enhanced_current_local_node_feature = self.decode_local_state(enhanced_local_node_feature,
                                                                                                   current_local_index, local_node_padding_mask)
         q_values = self.output_q(current_local_node_feature, enhanced_current_local_node_feature, enhanced_local_node_feature,
-                                 current_local_edge, current_local_index, all_agent_indices, all_agent_next_indices)
+                                 selected_global_node_feature, current_local_edge, current_local_index, all_agent_indices, all_agent_next_indices)
 
         return q_values

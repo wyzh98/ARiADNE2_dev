@@ -179,8 +179,7 @@ class NodeManager:
 
         return ground_truth_coords, ground_truth_adjacent_matrix, ground_truth_visible_matrix
 
-    def get_global_node_graph(self, visible_matrix, ground_truth=False, max_hop=1):
-        visible_matrix = 1 - visible_matrix
+    def get_global_node_graph(self, robot_location, visible_matrix, ground_truth=False, max_hop=1):
         node_coords = []
         for node in self.local_nodes_dict.__iter__():
             node_coords.append(node.data.coords)
@@ -194,12 +193,13 @@ class NodeManager:
                     node_coords.append(coords)
             node_coords = np.array(node_coords).reshape(-1, 2)
 
-        cliques = self.find_cliques(node_coords, visible_matrix)
+        cliques = self.find_cliques(node_coords, 1 - visible_matrix)
         center_indices = self.calc_clique_center(node_coords, cliques)
         global_node_coords = node_coords[center_indices]
 
-        G = nx.from_numpy_array(visible_matrix)
-        global_adj_matrix = np.zeros((len(center_indices), len(center_indices)))
+        G = nx.from_numpy_array(1 - visible_matrix)
+        global_adj_matrix = np.ones((len(center_indices), len(center_indices)))
+        np.fill_diagonal(global_adj_matrix, 0)
         center_combs = list(itertools.combinations(range(len(center_indices)), r=2))
 
         for center1, center2 in center_combs:
@@ -208,15 +208,19 @@ class NodeManager:
                 if p in cliques[center1] or p in cliques[center2]:
                     path.pop(1)
             if len(path) - 2 < max_hop:
-                global_adj_matrix[center1, center2] = 1
-                global_adj_matrix[center2, center1] = 1
+                global_adj_matrix[center1, center2] = 0
+                global_adj_matrix[center2, center1] = 0
 
-        global_adjacent_matrix_all_nodes = np.zeros_like(visible_matrix)
-        indices = np.where(global_adj_matrix == 1)
+        global_adj_matrix_padded = np.ones_like(visible_matrix).astype(int)
+        indices = np.where(global_adj_matrix == 0)
         new_indices = [np.array(center_indices)[i] for i in indices]
-        global_adjacent_matrix_all_nodes[new_indices[0], new_indices[1]] = 1
+        global_adj_matrix_padded[new_indices[0], new_indices[1]] = 0
 
-        return global_node_coords, 1 - global_adjacent_matrix_all_nodes, cliques
+        current_index = np.where((node_coords == robot_location).all(1))[0][0]
+        current_global_index = next((index for index, clique in enumerate(cliques) if current_index in clique), -1)
+        neighbor_global_indices = np.argwhere(global_adj_matrix[current_global_index] == 0).reshape(-1)
+
+        return global_node_coords, global_adj_matrix, global_adj_matrix_padded, cliques, current_global_index, neighbor_global_indices
 
     @staticmethod
     def find_cliques(all_node_coords, visible_matrix, min_clique_node=4):

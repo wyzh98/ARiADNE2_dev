@@ -45,7 +45,7 @@ class TestWorker:
             dist_list = []
 
             for robot in self.robot_list:
-                local_observation = robot.get_local_observation(pad=False)
+                local_observation = robot.get_observation(pad=False)
                 next_location, _, _ = robot.select_next_waypoint(local_observation, self.greedy)
                 selected_locations.append(next_location)
                 dist_list.append(np.linalg.norm(next_location - robot.location))

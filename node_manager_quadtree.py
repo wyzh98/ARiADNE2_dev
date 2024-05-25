@@ -203,7 +203,7 @@ class NodeManager:
         center_combs = list(itertools.combinations(range(len(center_indices)), r=2))
 
         for center1, center2 in center_combs:
-            path = nx.shortest_path(G, center_indices[center1], center_indices[center2])
+            path = nx.shortest_path(G, center_indices[center1], center_indices[center2])  # TODO: distance-based path
             for p in path[1: -1]:  # check if in the same clique
                 if p in cliques[center1] or p in cliques[center2]:
                     path.pop(1)
@@ -239,6 +239,7 @@ class NodeManager:
             if len(max_clique) >= min_clique_node:
                 cliques.append(list(max_clique))
             else:
+                clique_found = False
                 for node in all_node_coords[list(max_clique)]:
                     indices = [np.where((coords == all_node_coords).all(1))[0] for coords in node + cardinals]
                     for idx in indices:

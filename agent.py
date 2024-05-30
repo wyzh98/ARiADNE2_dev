@@ -49,7 +49,6 @@ class Agent:
         # global graph
         self.global_node_coords, self.global_adjacent_matrix, self.global_adjacent_matrix_padded = None, None, None
         self.global_clique_indices, self.current_global_index, self.global_neighbor_indices = None, None, None
-        self.selected_global_location = None
 
         # ground truth graph (only for critic)
         self.true_node_coords, self.true_adjacent_matrix, self.true_visible_matrix = None, None, None
@@ -58,7 +57,7 @@ class Agent:
         self.travel_dist = 0
 
         self.episode_buffer = []
-        for i in range(42):
+        for i in range(38):
             self.episode_buffer.append([])
 
         if self.plot:
@@ -206,22 +205,8 @@ class Agent:
             padding = torch.nn.ConstantPad2d((0, GLOBAL_NODE_PADDING_SIZE - n_global_node, 0, GLOBAL_NODE_PADDING_SIZE - n_global_node), 1)
             global_edge_mask = padding(global_edge_mask)
 
-        current_global_edge = torch.tensor(self.global_neighbor_indices).unsqueeze(0)
-        k_size = current_global_edge.size()[-1]
-        if pad:
-            padding = torch.nn.ConstantPad1d((0, LOCAL_K_SIZE - k_size), 0)
-            current_global_edge = padding(current_global_edge)
-        current_global_edge = current_global_edge.unsqueeze(-1)
-
-        global_edge_padding_mask = torch.zeros((1, 1, k_size), dtype=torch.int16).to(self.device)
-        # current_in_edge = np.argwhere(current_global_edge == self.current_global_index)[0][0]
-        # global_edge_padding_mask[0, 0, current_in_edge] = 1  # do not visit current node
-        if pad:
-            padding = torch.nn.ConstantPad1d((0, LOCAL_K_SIZE - k_size), 1)
-            global_edge_padding_mask = padding(global_edge_padding_mask)
-
         return [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask,
-                global_node_inputs, global_node_padding_mask, global_edge_mask, current_global_index, current_global_edge, global_edge_padding_mask]
+                global_node_inputs, global_node_padding_mask, global_edge_mask, current_global_index]
 
     def get_state(self):
         node_coords = self.true_node_coords
@@ -287,9 +272,8 @@ class Agent:
 
     def select_next_waypoint(self, local_observation, greedy=False):
         current_local_edge = local_observation[4]
-        current_global_index = local_observation[10]
         with torch.no_grad():
-            logp, global_logp_index = self.policy_net(*local_observation)
+            logp = self.policy_net(*local_observation)
 
         if greedy:
             action_index = torch.argmax(logp, dim=1).long()
@@ -298,8 +282,6 @@ class Agent:
 
         next_node_index = current_local_edge[0, action_index.item(), 0].item()
         next_position = self.local_node_coords[next_node_index]
-        selected_global_index = current_global_index[0, global_logp_index.item(), 0].item()
-        self.selected_global_location = self.global_node_coords[selected_global_index]
 
         return next_position, next_node_index, action_index
 
@@ -388,7 +370,7 @@ class Agent:
 
     def save_observation(self, local_observation):
         local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask, \
-            global_node_inputs, global_node_padding_mask, global_edge_mask, current_global_index, current_global_edge, global_edge_padding_mask= local_observation
+            global_node_inputs, global_node_padding_mask, global_edge_mask, current_global_index = local_observation
         self.episode_buffer[0] += local_node_inputs
         self.episode_buffer[1] += local_node_padding_mask.bool()
         self.episode_buffer[2] += local_edge_mask.bool()
@@ -400,8 +382,6 @@ class Agent:
         self.episode_buffer[25] += global_node_padding_mask.bool()
         self.episode_buffer[26] += global_edge_mask.bool()
         self.episode_buffer[27] += current_global_index
-        self.episode_buffer[28] += current_global_edge
-        self.episode_buffer[29] += global_edge_padding_mask.bool()
 
     def save_action(self, action_index):
         self.episode_buffer[6] += action_index.reshape(1, 1, 1)
@@ -424,15 +404,13 @@ class Agent:
         self.episode_buffer[15] = copy.deepcopy(self.episode_buffer[5])[1:]
         self.episode_buffer[16] = copy.deepcopy(self.episode_buffer[9])[1:]
 
-        self.episode_buffer[30] = copy.deepcopy(self.episode_buffer[24])[1:]
-        self.episode_buffer[31] = copy.deepcopy(self.episode_buffer[25])[1:]
-        self.episode_buffer[32] = copy.deepcopy(self.episode_buffer[26])[1:]
-        self.episode_buffer[33] = copy.deepcopy(self.episode_buffer[27])[1:]
-        self.episode_buffer[34] = copy.deepcopy(self.episode_buffer[28])[1:]
-        self.episode_buffer[35] = copy.deepcopy(self.episode_buffer[29])[1:]
+        self.episode_buffer[28] = copy.deepcopy(self.episode_buffer[24])[1:]
+        self.episode_buffer[29] = copy.deepcopy(self.episode_buffer[25])[1:]
+        self.episode_buffer[30] = copy.deepcopy(self.episode_buffer[26])[1:]
+        self.episode_buffer[31] = copy.deepcopy(self.episode_buffer[27])[1:]
 
         local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask, \
-            global_node_inputs, global_node_padding_mask, global_edge_mask, current_global_index, current_global_edge, global_edge_padding_mask = local_observation
+            global_node_inputs, global_node_padding_mask, global_edge_mask, current_global_index = local_observation
         self.episode_buffer[10] += local_node_inputs
         self.episode_buffer[11] += local_node_padding_mask.bool()
         self.episode_buffer[12] += local_edge_mask.bool()
@@ -443,12 +421,10 @@ class Agent:
         self.episode_buffer[17] = copy.deepcopy(self.episode_buffer[16])[1:]
         self.episode_buffer[17] += copy.deepcopy(self.episode_buffer[16])[-1:]
 
-        self.episode_buffer[30] += global_node_inputs
-        self.episode_buffer[31] += global_node_padding_mask.bool()
-        self.episode_buffer[32] += global_edge_mask.bool()
-        self.episode_buffer[33] += current_global_index
-        self.episode_buffer[34] += current_global_edge
-        self.episode_buffer[35] += global_edge_padding_mask.bool()
+        self.episode_buffer[28] += global_node_inputs
+        self.episode_buffer[29] += global_node_padding_mask.bool()
+        self.episode_buffer[30] += global_edge_mask.bool()
+        self.episode_buffer[31] += current_global_index
 
     def save_state(self, state):
         node_inputs, node_padding_mask, edge_mask, global_node_inputs, global_node_padding_mask, global_edge_mask = state
@@ -456,25 +432,25 @@ class Agent:
         self.episode_buffer[19] += node_padding_mask.bool()
         self.episode_buffer[20] += edge_mask.bool()
 
-        self.episode_buffer[36] += global_node_inputs
-        self.episode_buffer[37] += global_node_padding_mask.bool()
-        self.episode_buffer[38] += global_edge_mask.bool()
+        self.episode_buffer[32] += global_node_inputs
+        self.episode_buffer[33] += global_node_padding_mask.bool()
+        self.episode_buffer[34] += global_edge_mask.bool()
 
     def save_next_state(self, state):
         self.episode_buffer[21] = copy.deepcopy(self.episode_buffer[18])[1:]
         self.episode_buffer[22] = copy.deepcopy(self.episode_buffer[19])[1:]
         self.episode_buffer[23] = copy.deepcopy(self.episode_buffer[20])[1:]
 
-        self.episode_buffer[39] = copy.deepcopy(self.episode_buffer[36])[1:]
-        self.episode_buffer[40] = copy.deepcopy(self.episode_buffer[37])[1:]
-        self.episode_buffer[41] = copy.deepcopy(self.episode_buffer[38])[1:]
+        self.episode_buffer[35] = copy.deepcopy(self.episode_buffer[32])[1:]
+        self.episode_buffer[36] = copy.deepcopy(self.episode_buffer[33])[1:]
+        self.episode_buffer[37] = copy.deepcopy(self.episode_buffer[34])[1:]
 
         node_inputs, node_padding_mask, edge_mask, global_node_inputs, global_node_padding_mask, global_edge_mask = state
         self.episode_buffer[21] += node_inputs
         self.episode_buffer[22] += node_padding_mask.bool()
         self.episode_buffer[23] += edge_mask.bool()
 
-        self.episode_buffer[39] += global_node_inputs
-        self.episode_buffer[40] += global_node_padding_mask.bool()
-        self.episode_buffer[41] += global_edge_mask.bool()
+        self.episode_buffer[35] += global_node_inputs
+        self.episode_buffer[36] += global_node_padding_mask.bool()
+        self.episode_buffer[37] += global_edge_mask.bool()
 

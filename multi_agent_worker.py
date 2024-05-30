@@ -30,7 +30,7 @@ class Multi_agent_worker:
 
         self.episode_buffer = []
         self.perf_metrics = dict()
-        for i in range(42):
+        for i in range(38):
             self.episode_buffer.append([])
 
     def run_episode(self):
@@ -183,8 +183,6 @@ class Multi_agent_worker:
             c = color_list[robot.id]
             robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
             plt.plot(robot_cell[0], robot_cell[1], c=c, marker='o', markersize=10, zorder=5)
-            selected_global_cell = get_cell_position_from_coords(robot.selected_global_location, robot.global_map_info)
-            plt.plot(selected_global_cell[0], selected_global_cell[1], c=c, marker=4+robot.id, markersize=5, zorder=5)
             # plt.plot((np.array(robot.trajectory_x) - robot.global_map_info.map_origin_x) / robot.cell_size,
             #          (np.array(robot.trajectory_y) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
             #          linewidth=2, zorder=3)

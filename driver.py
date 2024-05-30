@@ -117,7 +117,7 @@ def main():
 
     # initialize training replay buffer
     experience_buffer = []
-    for i in range(42):
+    for i in range(38):
         experience_buffer.append([])
 
     # collect data from worker and do training
@@ -188,37 +188,33 @@ def main():
                     global_node_padding_mask = torch.stack(rollouts[25]).to(device)
                     global_edge_mask = torch.stack(rollouts[26]).to(device)
                     current_global_index = torch.stack(rollouts[27]).to(device)
-                    current_global_edge = torch.stack(rollouts[28]).to(device)
-                    global_edge_padding_mask = torch.stack(rollouts[29]).to(device)
-                    next_global_node_inputs = torch.stack(rollouts[30]).to(device)
-                    next_global_node_padding_mask = torch.stack(rollouts[31]).to(device)
-                    next_global_edge_mask = torch.stack(rollouts[32]).to(device)
-                    next_current_global_index = torch.stack(rollouts[33]).to(device)
-                    next_current_global_edge = torch.stack(rollouts[34]).to(device)
-                    next_global_edge_padding_mask = torch.stack(rollouts[35]).to(device)
-                    true_global_node_inputs = torch.stack(rollouts[36]).to(device)
-                    true_global_node_padding_mask = torch.stack(rollouts[37]).to(device)
-                    true_global_edge_mask = torch.stack(rollouts[38]).to(device)
-                    next_true_global_node_inputs = torch.stack(rollouts[39]).to(device)
-                    next_true_global_node_padding_mask = torch.stack(rollouts[40]).to(device)
-                    next_true_global_edge_mask = torch.stack(rollouts[41]).to(device)
+                    next_global_node_inputs = torch.stack(rollouts[28]).to(device)
+                    next_global_node_padding_mask = torch.stack(rollouts[29]).to(device)
+                    next_global_edge_mask = torch.stack(rollouts[30]).to(device)
+                    next_current_global_index = torch.stack(rollouts[31]).to(device)
+                    true_global_node_inputs = torch.stack(rollouts[32]).to(device)
+                    true_global_node_padding_mask = torch.stack(rollouts[33]).to(device)
+                    true_global_edge_mask = torch.stack(rollouts[34]).to(device)
+                    next_true_global_node_inputs = torch.stack(rollouts[35]).to(device)
+                    next_true_global_node_padding_mask = torch.stack(rollouts[36]).to(device)
+                    next_true_global_edge_mask = torch.stack(rollouts[37]).to(device)
 
                     observation = [local_node_inputs, local_node_padding_mask, local_edge_mask,
                                    current_local_index, current_local_edge, local_edge_padding_mask,
                                    global_node_inputs, global_node_padding_mask, global_edge_mask,
-                                   current_global_index, current_global_edge, global_edge_padding_mask]
+                                   current_global_index]
                     next_observation = [next_local_node_inputs, next_local_node_padding_mask, next_local_edge_mask,
                                         next_current_local_index, next_current_local_edge, next_local_edge_padding_mask,
                                         next_global_node_inputs, next_global_node_padding_mask, next_global_edge_mask,
-                                        next_current_global_index, next_current_global_edge, next_global_edge_padding_mask]
+                                        next_current_global_index]
                     state = [true_node_inputs, true_node_padding_mask, true_edge_mask,
                              current_local_index, current_local_edge, all_agent_indices, all_agent_next_indices,
                              true_global_node_inputs, true_global_node_padding_mask, true_global_edge_mask,
-                             current_global_index, current_global_edge, global_edge_padding_mask]
+                             current_global_index]
                     next_state = [next_true_node_inputs, next_true_node_padding_mask, next_true_edge_mask,
                                   next_current_local_index, next_current_local_edge, all_agent_next_indices, next_all_agent_next_indices,
                                   next_true_global_node_inputs, next_true_global_node_padding_mask, next_true_global_edge_mask,
-                                  next_current_global_index, next_current_global_edge, next_global_edge_padding_mask]
+                                  next_current_global_index]
 
                     # SAC
                     with torch.no_grad():
@@ -226,7 +222,7 @@ def main():
                         q_values2 = dp_q_net2(*state)
                         q_values = torch.min(q_values1, q_values2)
 
-                    logp, _ = dp_policy(*observation)
+                    logp = dp_policy(*observation)
                     policy_loss = torch.sum(
                         (logp.exp().unsqueeze(2) * (log_alpha.exp().detach() * logp.unsqueeze(2) - q_values.detach())),
                         dim=1).mean()
@@ -238,7 +234,7 @@ def main():
                     global_policy_optimizer.step()
 
                     with torch.no_grad():
-                        next_logp, _ = dp_policy(*next_observation)
+                        next_logp = dp_policy(*next_observation)
                         next_q_values1 = dp_target_q_net1(*next_state)
                         next_q_values2 = dp_target_q_net2(*next_state)
                         next_q_values = torch.min(next_q_values1, next_q_values2)

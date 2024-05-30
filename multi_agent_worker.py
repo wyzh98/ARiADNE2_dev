@@ -216,11 +216,11 @@ class Multi_agent_worker:
                 if robot.global_adjacent_matrix_padded[i, j] == 0:
                     plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c='b', linewidth=2, zorder=4)
         for i, clique in enumerate(robot.global_clique_indices):
-            clique_coords = get_cell_position_from_coords(robot.local_node_coords[clique], robot.safe_zone_info)
+            clique_coords = get_cell_position_from_coords(robot.local_node_coords[clique], robot.safe_zone_info).reshape(-1, 2)
             rand_c = np.random.rand(3).reshape(1, -1)
             plt.scatter(clique_coords[:, 0], clique_coords[:, 1], c=rand_c, s=10, zorder=3)
-            clique_center = get_cell_position_from_coords(robot.global_node_coords[i], robot.safe_zone_info)
-            plt.scatter(clique_center[0], clique_center[1], c=rand_c, s=80, zorder=5)
+            # clique_center = get_cell_position_from_coords(robot.global_node_coords[i], robot.safe_zone_info).flatten()
+            # plt.scatter(clique_center[0], clique_center[1], c=rand_c, s=80, zorder=5)
 
         plt.suptitle('Explored rate: {:.4g} | Cleared rate: {:.4g} | Trajectory length: {:.4g}'.format(self.env.explored_rate,
                                                                                                 self.env.safe_rate,
@@ -236,7 +236,7 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
-    # ckp = torch.load('model/advsearch_iros_reduced/checkpoint.pth', map_location='cpu')
-    # policy_net.load_state_dict(ckp['policy_model'])
+    ckp = torch.load('model/advsearch_binarymap_know_hier_qselect/checkpoint.pth', map_location='cpu')
+    policy_net.load_state_dict(ckp['policy_model'])
     worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
     worker.run_episode()

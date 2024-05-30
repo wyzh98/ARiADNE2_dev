@@ -283,8 +283,7 @@ class Agent:
         padding = torch.nn.ConstantPad2d((0, GLOBAL_NODE_PADDING_SIZE - n_global_node, 0, GLOBAL_NODE_PADDING_SIZE - n_global_node), 1)
         global_edge_mask = padding(global_edge_mask)
 
-        return [node_inputs, node_padding_mask, edge_mask,
-                global_node_inputs, global_node_padding_mask, global_edge_mask]
+        return [node_inputs, node_padding_mask, edge_mask, global_node_inputs, global_node_padding_mask, global_edge_mask]
 
     def select_next_waypoint(self, local_observation, greedy=False):
         current_local_edge = local_observation[4]

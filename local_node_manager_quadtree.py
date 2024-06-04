@@ -156,30 +156,6 @@ class NodeManager:
                 occupancy[index] = 1
         return all_node_coords, explore_utility, safe_utility, uncovered_safe_utility, guidepost, signal, counter_signal, occupancy, adjacent_matrix, current_index, neighbor_indices
 
-    def get_underlying_node_graph(self, all_node_coords):
-        ground_truth_coords = copy.deepcopy(all_node_coords).tolist()
-
-        for node in self.ground_truth_nodes_dict.__iter__():
-            coords = node.data.coords
-            if not (coords == all_node_coords).all(1).any(0):
-                ground_truth_coords.append(coords)
-
-        ground_truth_coords = np.array(ground_truth_coords).reshape(-1, 2)
-
-        n_nodes = ground_truth_coords.shape[0]
-        ground_truth_adjacent_matrix = np.ones((n_nodes, n_nodes)).astype(int)
-        node_coords_to_check = ground_truth_coords[:, 0] + ground_truth_coords[:, 1] * 1j
-
-        for i, coords in enumerate(ground_truth_coords):
-            node = self.ground_truth_nodes_dict.find((coords[0], coords[1])).data
-            for neighbor in node.neighbor_list:
-                index = np.argwhere(node_coords_to_check == neighbor[0] + neighbor[1] * 1j)
-                if index or index == [[0]]:
-                    index = index[0][0]
-                    ground_truth_adjacent_matrix[i, index] = 0
-
-        return ground_truth_coords, ground_truth_adjacent_matrix
-
     def h(self, coords_1, coords_2):
         # h = abs(coords_1[0] - coords_2[0]) + abs(coords_1[1] - coords_2[1])
         h = ((coords_1[0] - coords_2[0]) ** 2 + (coords_1[1] - coords_2[1]) ** 2) ** (1 / 2)

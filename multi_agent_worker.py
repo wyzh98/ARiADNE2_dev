@@ -30,7 +30,7 @@ class Multi_agent_worker:
 
         self.episode_buffer = []
         self.perf_metrics = dict()
-        for i in range(24):
+        for i in range(18):
             self.episode_buffer.append([])
 
     def run_episode(self):
@@ -41,7 +41,6 @@ class Multi_agent_worker:
             robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers, self.env.counter_safe_info)
         for robot in self.robot_list:
             robot.update_planning_state(self.env.robot_locations)
-            robot.update_underlying_state()
 
         safe_increase_log = []
         max_travel_dist = 0
@@ -51,9 +50,7 @@ class Multi_agent_worker:
             next_node_index_list = []
             for robot in self.robot_list:
                 local_observation = robot.get_local_observation()
-                state = robot.get_state()
                 robot.save_observation(local_observation)
-                robot.save_state(state)
 
                 next_location, next_node_index, action_index = robot.select_next_waypoint(local_observation)
                 robot.save_action(action_index)
@@ -97,7 +94,6 @@ class Multi_agent_worker:
                 robot.save_reward(reward)
                 robot.save_done(done)
                 robot.update_planning_state(self.env.robot_locations)
-                robot.update_underlying_state()
 
             if self.save_image:
                 self.plot_local_env(i)
@@ -116,9 +112,7 @@ class Multi_agent_worker:
         # save episode buffer
         for robot in self.robot_list:
             local_observation = robot.get_local_observation()
-            state = robot.get_state()
             robot.save_next_observations(local_observation, next_node_index_list)
-            robot.save_next_state(state)
 
             for i in range(len(self.episode_buffer)):
                 self.episode_buffer[i] += robot.episode_buffer[i]

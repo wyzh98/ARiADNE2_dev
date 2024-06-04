@@ -169,15 +169,12 @@ def main():
                     action = torch.stack(rollouts[6]).to(device)
                     reward = torch.stack(rollouts[7]).to(device)
                     done = torch.stack(rollouts[8]).to(device)
-                    all_agent_indices = torch.stack(rollouts[9]).to(device)
                     next_local_node_inputs = torch.stack(rollouts[10]).to(device)
                     next_local_node_padding_mask = torch.stack(rollouts[11]).to(device)
                     next_local_edge_mask = torch.stack(rollouts[12]).to(device)
                     next_current_local_index = torch.stack(rollouts[13]).to(device)
                     next_current_local_edge = torch.stack(rollouts[14]).to(device)
                     next_local_edge_padding_mask = torch.stack(rollouts[15]).to(device)
-                    all_agent_next_indices = torch.stack(rollouts[16]).to(device)
-                    next_all_agent_next_indices = torch.stack(rollouts[17]).to(device)
                     global_node_inputs = torch.stack(rollouts[18]).to(device)
                     global_node_padding_mask = torch.stack(rollouts[19]).to(device)
                     global_edge_mask = torch.stack(rollouts[20]).to(device)
@@ -190,9 +187,9 @@ def main():
                     next_observation = [next_local_node_inputs, next_local_node_padding_mask, next_local_edge_mask,
                                         next_current_local_index, next_current_local_edge, next_local_edge_padding_mask]
                     state = [global_node_inputs, global_node_padding_mask, global_edge_mask, current_local_index,
-                             current_local_edge, all_agent_indices, all_agent_next_indices]
+                             current_local_edge]
                     next_state = [next_global_node_inputs, next_global_node_padding_mask, next_global_edge_mask,
-                                  next_current_local_index, next_current_local_edge, all_agent_next_indices, next_all_agent_next_indices]
+                                  next_current_local_index, next_current_local_edge]
 
                     # SAC
                     with torch.no_grad():
@@ -289,7 +286,7 @@ def main():
                 global_target_q_net2.eval()
 
             # save the model
-            if curr_episode % 100 == 0:
+            if curr_episode % 1000 == 0:
                 print('Saving model', end='\n')
                 checkpoint = {"policy_model": global_policy_net.state_dict(),
                               "q_net1_model": global_q_net1.state_dict(),

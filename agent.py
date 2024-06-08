@@ -301,7 +301,6 @@ class Agent:
         self.episode_buffer[13] = copy.deepcopy(self.episode_buffer[3])[1:]
         self.episode_buffer[14] = copy.deepcopy(self.episode_buffer[4])[1:]
         self.episode_buffer[15] = copy.deepcopy(self.episode_buffer[5])[1:]
-        self.episode_buffer[16] = copy.deepcopy(self.episode_buffer[9])[1:]
 
         local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
         self.episode_buffer[10] += local_node_inputs

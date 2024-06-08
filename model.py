@@ -275,7 +275,7 @@ class QNet(nn.Module):
         self.agent_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
         self.all_agent_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
 
-        self.q_values_layer = nn.Linear(embedding_dim * 4, 1)
+        self.q_values_layer = nn.Linear(embedding_dim * 3, 1)
 
     def encode_local_graph(self, local_node_inputs, local_node_padding_mask, local_edge_mask):
         local_node_feature = self.initial_local_embedding(local_node_inputs)
@@ -296,41 +296,27 @@ class QNet(nn.Module):
         return current_local_node_feature, enhanced_current_local_node_feature
 
     def output_q(self, current_local_node_feature, enhanced_current_local_node_feature, enhanced_local_node_feature,
-                 current_local_edge, current_local_index, all_agent_indices, all_agent_next_indices):
+                 current_local_edge):
         embedding_dim = enhanced_local_node_feature.size()[2]
         k_size = current_local_edge.size()[1]
         current_state_feature = current_local_node_feature
         enhanced_current_state_feature = enhanced_current_local_node_feature
 
-        neighboring_feature = torch.gather(enhanced_local_node_feature, 1, current_local_edge.repeat(1, 1, embedding_dim))
-
-        all_agent_node_feature = torch.gather(enhanced_local_node_feature, 1, all_agent_indices.repeat(1, 1, embedding_dim))
-        all_agent_selected_neighboring_feature = torch.gather(enhanced_local_node_feature, 1,
-                                                              all_agent_next_indices.repeat(1, 1, embedding_dim))
-
-        all_agent_action_features = torch.cat((all_agent_node_feature, all_agent_selected_neighboring_feature), dim=-1)
-        all_agent_action_features = self.all_agent_embedding(all_agent_action_features)
-
-        agent_mask = all_agent_indices == current_local_index
-
-        global_state_action_feature, _ = self.agent_decoder(current_state_feature, all_agent_action_features,
-                                                            agent_mask)
+        neighboring_feature = torch.gather(enhanced_local_node_feature, 1,
+                                           current_local_edge.repeat(1, 1, embedding_dim))
 
         action_features = torch.cat((current_state_feature.repeat(1, k_size, 1),
                                      enhanced_current_state_feature.repeat(1, k_size, 1),
-                                     global_state_action_feature.repeat(1, k_size, 1),
                                      neighboring_feature), dim=-1)
-
         q_values = self.q_values_layer(action_features)
         return q_values
 
     # @torch.compile
     def forward(self, local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index,
-                current_local_edge, all_agent_indices, all_agent_next_indices):
+                current_local_edge):
         enhanced_local_node_feature = self.encode_local_graph(local_node_inputs, local_node_padding_mask, local_edge_mask)
-        current_local_node_feature, enhanced_current_local_node_feature = self.decode_local_state(enhanced_local_node_feature,
-                                                                                                  current_local_index, local_node_padding_mask)
-        q_values = self.output_q(current_local_node_feature, enhanced_current_local_node_feature, enhanced_local_node_feature,
-                                 current_local_edge, current_local_index, all_agent_indices, all_agent_next_indices)
+        current_local_node_feature, enhanced_current_local_node_feature = self.decode_local_state(enhanced_local_node_feature, current_local_index, local_node_padding_mask)
+        q_values = self.output_q(current_local_node_feature, enhanced_current_local_node_feature,
+                                 enhanced_local_node_feature, current_local_edge)
 
         return q_values

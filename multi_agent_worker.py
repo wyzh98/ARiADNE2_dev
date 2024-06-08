@@ -30,7 +30,7 @@ class Multi_agent_worker:
 
         self.episode_buffer = []
         self.perf_metrics = dict()
-        for i in range(18):
+        for i in range(16):
             self.episode_buffer.append([])
 
     def run_episode(self):
@@ -112,7 +112,7 @@ class Multi_agent_worker:
         # save episode buffer
         for robot in self.robot_list:
             local_observation = robot.get_local_observation()
-            robot.save_next_observations(local_observation, next_node_index_list)
+            robot.save_next_observations(local_observation)
 
             for i in range(len(self.episode_buffer)):
                 self.episode_buffer[i] += robot.episode_buffer[i]

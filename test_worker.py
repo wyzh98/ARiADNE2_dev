@@ -40,6 +40,11 @@ class TestWorker:
             self.plot_local_env(-1)
 
         max_travel_dist = 0
+
+        length_history = [max_travel_dist]
+        safe_rate_history = [self.env.safe_rate]
+        explored_rate_history = [self.env.explored_rate]
+
         for i in range(MAX_EPISODE_STEP):
             selected_locations = []
             dist_list = []
@@ -69,8 +74,17 @@ class TestWorker:
                     selected_locations_in_arriving_sequence[j] = selected_location
                     selected_locations[id] = selected_location
 
-            self.env.decrease_safety(selected_locations)
-            # self.env.safe_zone_frontiers = get_safe_zone_frontier(self.env.safe_info, self.env.belief_info)
+            if not UNBOUND_SPEED:
+                self.env.decrease_safety(selected_locations)
+            else:
+                tmp_safe_zone_frontier = copy.deepcopy(self.env.safe_zone_frontiers)
+                for _ in range(8):
+                    self.env.decrease_safety(selected_locations)
+                    self.env.safe_zone_frontiers = get_safe_zone_frontier(self.env.safe_info, self.env.belief_info)
+                    if np.array_equal(tmp_safe_zone_frontier, self.env.safe_zone_frontiers):
+                        break
+                    else:
+                        tmp_safe_zone_frontier = copy.deepcopy(self.env.safe_zone_frontiers)
 
             self.env.step(selected_locations)
 
@@ -86,6 +100,10 @@ class TestWorker:
             max_travel_dist += np.max(dist_list)
 
             done = self.env.check_done()
+
+            length_history.append(max_travel_dist)
+            safe_rate_history.append(self.env.safe_rate)
+            explored_rate_history.append(self.env.explored_rate)
 
             if self.save_image:
                 self.plot_local_env(i)
@@ -103,6 +121,9 @@ class TestWorker:
         self.perf_metrics['explored_rate'] = self.env.explored_rate
         self.perf_metrics['safe_rate'] = self.env.safe_rate
         self.perf_metrics['success_rate'] = done
+        self.perf_metrics['length_history'] = length_history
+        self.perf_metrics['safe_rate_history'] = safe_rate_history
+        self.perf_metrics['explored_rate_history'] = explored_rate_history
 
         # save gif
         if self.save_image:
@@ -168,5 +189,5 @@ if __name__ == '__main__':
     net = PolicyNet(8, 128)
     ckp = torch.load(f'{model_path}/checkpoint.pth', map_location=torch.device('cpu'))
     net.load_state_dict(ckp['policy_model'])
-    test_worker = TestWorker(0, net, 0, save_image=False, greedy=True)
+    test_worker = TestWorker(0, net, 0, save_image=True, greedy=True)
     test_worker.run_episode()

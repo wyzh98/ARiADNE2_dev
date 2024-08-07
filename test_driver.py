@@ -1,6 +1,7 @@
 import ray
 import numpy as np
 import torch
+import csv
 
 from model import PolicyNet
 from test_worker import TestWorker
@@ -27,6 +28,9 @@ def run_test():
     explored_rate_history = []
     safe_rate_history = []
     success_rate_history = []
+    all_length_history = []
+    all_safe_rate_history = []
+    all_explored_rate_history = []
 
     job_list = []
     for i, meta_agent in enumerate(meta_agents):
@@ -45,6 +49,9 @@ def run_test():
                 explored_rate_history.append(metrics['explored_rate'])
                 safe_rate_history.append(metrics['safe_rate'])
                 success_rate_history.append(metrics['success_rate'])
+                all_length_history.extend(metrics['length_history'])
+                all_safe_rate_history.extend(metrics['safe_rate_history'])
+                all_explored_rate_history.extend(metrics['explored_rate_history'])
 
                 if curr_test < NUM_TEST:
                     job_list.append(meta_agents[info['id']].job.remote(weights, curr_test))
@@ -52,14 +59,26 @@ def run_test():
 
         print('=====================================')
         print('|#Test:', FOLDER_NAME)
+        print('|#Number of agents:', TEST_N_AGENTS)
         print('|#Total test:', NUM_TEST)
         print('|#Average max length:', np.array(max_dist_history).mean())
         print('|#Std max length:', np.array(max_dist_history).std())
-        # print('|#Average length:', np.array(dist_history).mean())
-        # print('|#Length std:', np.array(dist_history).std())
         print('|#Average explored rate:', np.array(explored_rate_history).mean())
         print('|#Average safe rate:', np.array(safe_rate_history).mean())
         print('|#Average success rate:', np.array(success_rate_history).mean())
+
+        if SAVE_CSV:
+            idx = np.array(all_length_history).argsort()
+            all_length_history = np.array(all_length_history)[idx]
+            all_safe_rate_history = np.array(all_safe_rate_history)[idx]
+            all_explored_rate_history = np.array(all_explored_rate_history)[idx]
+            with open(f'results/result_rl_n={TEST_N_AGENTS}.csv', mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['length', 'safe', 'explore'])
+                csv_data = np.concatenate([all_length_history.reshape(-1, 1), all_safe_rate_history.reshape(-1, 1),
+                                           all_explored_rate_history.reshape(-1, 1)], axis=-1)
+                writer.writerows(csv_data)
+            print('CSV saved')
 
     except KeyboardInterrupt:
         print("CTRL_C pressed. Killing remote workers")

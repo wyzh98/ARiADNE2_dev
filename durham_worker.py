@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from copy import deepcopy
 import ray
+import csv
 
 from env import Env
 from agent import Agent
@@ -13,14 +14,15 @@ from sensor import coverage_sensor
 TEST_N_AGENTS = 4
 EXPLORATION = True
 # GROUP_START: change in test_parameter.py
-# MIN_UTILITY = 0  # !! change in test_parameter.py
-RAY_META_AGENT = 10
-NUM_TEST = 100
+# MIN_UTILITY = 0  # !! change in parameter.py
+RAY_META_AGENT = 1
+NUM_TEST = 1
 
 MAX_EPISODE_STEP = 128
-SENSOR_RANGE = 20
+SENSOR_RANGE = 20  # 7.9812
 CELL_SIZE = 0.4
 SAVE_IMG = False
+SAVE_CSV = False
 gifs_path = 'results/gifs'
 
 if not os.path.exists(gifs_path):
@@ -40,7 +42,7 @@ class DurhamWorker:
         self.agent_status = [0] * self.env.n_agent  # 0: follower, 1: frontier guard
         self.agent_next_location = [None] * self.env.n_agent
 
-    def assign_frontier_guard(self, best_locations):
+    def assign_frontier_guard(self, best_locations):  # TODO: if best_locations len > n_agent then stop
         frontier_guards = []
         for location in best_locations:
             min_dist = 1e6
@@ -143,6 +145,11 @@ class DurhamWorker:
             self.plot_local_env(-1)
 
         max_travel_dist = 0
+
+        length_list = [max_travel_dist]
+        safe_rate_list = [self.env.safe_rate]
+        explored_rate_list = [self.env.explored_rate]
+
         for i in range(MAX_EPISODE_STEP):
             self.agent_status = [0] * self.env.n_agent
             best_locations = self.find_next_best_views()
@@ -168,8 +175,16 @@ class DurhamWorker:
 
             selected_locations = self.solve_path_confict(selected_locations, dist_list)
 
-            self.env.decrease_safety(selected_locations)
-            # self.env.safe_zone_frontiers = get_safe_zone_frontier(self.env.safe_info, self.env.belief_info)
+            # self.env.decrease_safety(selected_locations)
+
+            tmp_safe_zone_frontier = copy.deepcopy(self.env.safe_zone_frontiers)
+            for _ in range(8):
+                self.env.decrease_safety(selected_locations)
+                self.env.safe_zone_frontiers = get_safe_zone_frontier(self.env.safe_info, self.env.belief_info)
+                if np.array_equal(tmp_safe_zone_frontier, self.env.safe_zone_frontiers):
+                    break
+                else:
+                    tmp_safe_zone_frontier = copy.deepcopy(self.env.safe_zone_frontiers)
 
             self.env.step(selected_locations)
 
@@ -187,6 +202,10 @@ class DurhamWorker:
 
             done = self.env.check_done()
 
+            length_list.append(max_travel_dist)
+            safe_rate_list.append(self.env.safe_rate)
+            explored_rate_list.append(self.env.explored_rate)
+
             if max_travel_dist >= 1000:
                 max_travel_dist = 1000
                 break
@@ -202,7 +221,7 @@ class DurhamWorker:
         if self.save_image:
             make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.explored_rate)
 
-        perf_metrics = [max_travel_dist, self.env.explored_rate, self.env.safe_rate, done]
+        perf_metrics = [max_travel_dist, self.env.explored_rate, self.env.safe_rate, done, length_list, safe_rate_list, explored_rate_list]
 
         return perf_metrics
 
@@ -308,6 +327,9 @@ if __name__ == '__main__':
     explored_rate_history = []
     safe_rate_history = []
     success_rate_history = []
+    all_length_history = []
+    all_safe_rate_history = []
+    all_explored_rate_history = []
 
     if NUM_TEST == 1:
         worker = DurhamWorker(0, curr_test, SAVE_IMG)
@@ -316,6 +338,9 @@ if __name__ == '__main__':
         explored_rate_history.append(metrics[1])
         safe_rate_history.append(metrics[2])
         success_rate_history.append(metrics[3])
+        all_length_history.extend(metrics[4])
+        all_safe_rate_history.extend(metrics[5])
+        all_explored_rate_history.extend(metrics[6])
 
     else:
         ray.init()
@@ -336,6 +361,9 @@ if __name__ == '__main__':
                     explored_rate_history.append(metrics[1])
                     safe_rate_history.append(metrics[2])
                     success_rate_history.append(metrics[3])
+                    all_length_history.extend(metrics[4])
+                    all_safe_rate_history.extend(metrics[5])
+                    all_explored_rate_history.extend(metrics[6])
 
                     if curr_test < NUM_TEST:
                         run_list.append(meta_agents[meta_id].job.remote(curr_test))
@@ -354,3 +382,16 @@ if __name__ == '__main__':
     print('|#Average explored rate:', np.array(explored_rate_history).mean())
     print('|#Average safe rate:', np.array(safe_rate_history).mean())
     print('|#Average success rate:', np.array(success_rate_history).mean())
+
+    if SAVE_CSV:
+        idx = np.array(all_length_history).argsort()
+        all_length_history = np.array(all_length_history)[idx]
+        all_safe_rate_history = np.array(all_safe_rate_history)[idx]
+        all_explored_rate_history = np.array(all_explored_rate_history)[idx]
+        with open(f'results/result_durham_n={TEST_N_AGENTS}.csv', mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(['length', 'safe', 'explore'])
+            csv_data = np.concatenate([all_length_history.reshape(-1, 1), all_safe_rate_history.reshape(-1, 1),
+                                       all_explored_rate_history.reshape(-1, 1)], axis=-1)
+            writer.writerows(csv_data)
+        print('CSV saved')
